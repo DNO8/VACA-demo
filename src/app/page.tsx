@@ -1,15 +1,28 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Globe2, RotateCcw, ExternalLink, Radio, Activity } from 'lucide-react';
+import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid } from 'lucide-react';
 import RegionPanel, { TxEntry } from '@/components/RegionPanel';
+import VaquitaDetail from '@/components/VaquitaDetail';
+import VaquitaCards from '@/components/VaquitaCards';
 import type { Step } from '@/components/Tour';
 import { getDisaster, SEVERITY_COLOR, REGION_NAMES } from '@/lib/chile';
 import { DemoAccounts, setupDemo, explorerTx } from '@/lib/stellar';
+import {
+  VaquitaIncident,
+  VaquitaFilter,
+  fetchVaquitas,
+  filterVaquitas,
+  regionOfPoint,
+  MOCK_INCIDENTS,
+} from '@/lib/vaquitas';
 
 const VacaGlobe = dynamic(() => import('@/components/VacaGlobe'), { ssr: false });
 const Tour = dynamic(() => import('@/components/Tour'), { ssr: false });
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const COMMUNITY_VOTE_THRESHOLD = 20;
 
 interface SelectedRegion {
   id: number;
@@ -114,6 +127,68 @@ export default function Home() {
   const [panelTourPending, setPanelTourPending] = useState(false);
   const [panelTourShown, setPanelTourShown] = useState(false);
 
+  // ── Vaquita: feed público de señales (real o mock) ──
+  const [incidents, setIncidents] = useState<VaquitaIncident[]>([]);
+  const [geojson, setGeojson] = useState<any>(null);
+  const [selectedIncident, setSelectedIncident] = useState<VaquitaIncident | null>(null);
+  const [viewMode, setViewMode] = useState<'map' | 'cards'>('map');
+  const [filter, setFilter] = useState<VaquitaFilter>({
+    regionId: null,
+    donationStatus: null,
+  });
+  // Wallet del donante — mock: conectar habilita el voto comunitario.
+  const [walletConnected, setWalletConnected] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/chile-regions.geojson')
+      .then((r) => r.json())
+      .then((g) => !cancelled && setGeojson(g))
+      .catch(() => {});
+    const useMock =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('mock');
+    (useMock || !SUPABASE_URL
+      ? Promise.resolve(MOCK_INCIDENTS)
+      : fetchVaquitas(SUPABASE_URL)
+    ).then((rows) => {
+      if (!cancelled) setIncidents(rows.length ? rows : MOCK_INCIDENTS);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleIncidents = useMemo(
+    () => filterVaquitas(incidents, geojson, filter),
+    [incidents, geojson, filter],
+  );
+
+  const handleIncidentClick = useCallback((incident: VaquitaIncident) => {
+    setSelectedIncident(incident);
+    setSelected(null);
+  }, []);
+
+  // Voto comunitario (mock): acumula localmente; al umbral promueve a
+  // Vaquita Comunitaria. La barrera anti-Sybil real queda para el backend.
+  const handleVote = useCallback((id: string) => {
+    setIncidents((list) =>
+      list.map((i) => {
+        if (i.id !== id) return i;
+        const votes = i.votes + 1;
+        return {
+          ...i,
+          votes,
+          donationStatus:
+            votes >= COMMUNITY_VOTE_THRESHOLD ? 'community' : i.donationStatus,
+        };
+      }),
+    );
+    setSelectedIncident((cur) =>
+      cur && cur.id === id ? { ...cur, votes: cur.votes + 1 } : cur,
+    );
+  }, []);
+
   // Deep-links (usados por los tests E2E): ?region=<id>.
   // El tour solo corre en una visita normal (sin parámetros de demo/tests).
   useEffect(() => {
@@ -195,6 +270,8 @@ export default function Home() {
         started={started}
         selectedRegionId={selected?.id ?? null}
         onRegionClick={handleRegionClick}
+        incidents={visibleIncidents}
+        onIncidentClick={handleIncidentClick}
       />
 
       {/* HUD superior */}
@@ -216,6 +293,18 @@ export default function Home() {
         {started && (
           <div data-tour="status" className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <StatusPill accounts={accounts} setupMsg={setupMsg} />
+            <button
+              onClick={() =>
+                setViewMode((m) => (m === 'map' ? 'cards' : 'map'))
+              }
+              className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
+            >
+              <LayoutGrid size={12} className="md:hidden" />
+              <LayoutGrid size={13} className="hidden md:block" />
+              <span className="hidden md:inline">
+                {viewMode === 'map' ? 'Panel' : 'Mapa'}
+              </span>
+            </button>
             <button
               onClick={handleReset}
               className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
@@ -295,6 +384,43 @@ export default function Home() {
           />
         )}
       </div>
+
+      {/* Ficha Vaquita del punto seleccionado */}
+      {selectedIncident && viewMode === 'map' && (
+        <VaquitaDetail
+          incident={selectedIncident}
+          regionName={
+            selectedIncident.latitude != null &&
+            selectedIncident.longitude != null &&
+            geojson
+              ? regionOfPoint(
+                  geojson,
+                  selectedIncident.longitude,
+                  selectedIncident.latitude,
+                )?.name ?? null
+              : null
+          }
+          walletConnected={walletConnected}
+          onConnectWallet={() => setWalletConnected(true)}
+          onVote={handleVote}
+          onClose={() => setSelectedIncident(null)}
+        />
+      )}
+
+      {/* Vista en panel de cards */}
+      {viewMode === 'cards' && (
+        <VaquitaCards
+          incidents={visibleIncidents}
+          geojson={geojson}
+          filter={filter}
+          onFilterChange={setFilter}
+          onSelect={(incident) => {
+            setSelectedIncident(incident);
+            setViewMode('map');
+          }}
+          onClose={() => setViewMode('map')}
+        />
+      )}
 
       {/* Tour guiado paso a paso */}
       {tourPhase !== 'idle' && (

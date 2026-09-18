@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, memo } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DISASTERS, SEVERITY_COLOR } from '@/lib/chile';
+import { VaquitaIncident, CATEGORY_COLOR, VAQUITA_GOLD } from '@/lib/vaquitas';
 
 const STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
@@ -15,6 +16,8 @@ interface VacaGlobeProps {
   started: boolean;
   selectedRegionId: number | null;
   onRegionClick: (regionId: number, name: string, center: [number, number]) => void;
+  incidents?: VaquitaIncident[];
+  onIncidentClick?: (incident: VaquitaIncident) => void;
   onReady?: () => void;
 }
 
@@ -59,7 +62,14 @@ function getFeatureBounds(feature: any): maplibregl.LngLatBoundsLike | null {
   ];
 }
 
-function VacaGlobe({ started, selectedRegionId, onRegionClick, onReady }: VacaGlobeProps) {
+function VacaGlobe({
+  started,
+  selectedRegionId,
+  onRegionClick,
+  incidents = [],
+  onIncidentClick,
+  onReady,
+}: VacaGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -67,6 +77,10 @@ function VacaGlobe({ started, selectedRegionId, onRegionClick, onReady }: VacaGl
   const geoRef = useRef<any>(null);
   const clickHandler = useRef(onRegionClick);
   clickHandler.current = onRegionClick;
+  const incidentHandler = useRef(onIncidentClick);
+  incidentHandler.current = onIncidentClick;
+  const incidentsRef = useRef(incidents);
+  incidentsRef.current = incidents;
 
   // ── Init map ──
   useEffect(() => {
@@ -207,6 +221,57 @@ function VacaGlobe({ started, selectedRegionId, onRegionClick, onReady }: VacaGl
         },
       });
 
+      // ── Señales y Vaquitas (puntos reales del feed) ──
+      // orbes = donationStatus 'vaquita' | 'community' (brillantes, dorado)
+      // luceros = donationStatus 'signal' (pequeños, color de categoría)
+      map.addSource('vaquitas', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] } as any,
+      });
+      map.addLayer({
+        id: 'vaquita-glow',
+        type: 'circle',
+        source: 'vaquitas',
+        filter: ['!=', ['get', 'donationStatus'], 'signal'],
+        paint: {
+          'circle-radius': 16,
+          'circle-color': VAQUITA_GOLD,
+          'circle-opacity': 0.28,
+          'circle-blur': 0.7,
+        },
+      });
+      map.addLayer({
+        id: 'vaquita-orb',
+        type: 'circle',
+        source: 'vaquitas',
+        filter: ['!=', ['get', 'donationStatus'], 'signal'],
+        paint: {
+          'circle-radius': 7,
+          'circle-color': VAQUITA_GOLD,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.4,
+          'circle-opacity': [
+            'case',
+            ['==', ['get', 'donationStatus'], 'vaquita'],
+            1,
+            0.75,
+          ],
+        },
+      });
+      map.addLayer({
+        id: 'signal-lucero',
+        type: 'circle',
+        source: 'vaquitas',
+        filter: ['==', ['get', 'donationStatus'], 'signal'],
+        paint: {
+          'circle-radius': 4,
+          'circle-color': ['get', 'color'],
+          'circle-opacity': 0.85,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 0.6,
+        },
+      });
+
       // Animación de pulso
       let t = 0;
       const pulse = () => {
@@ -258,6 +323,23 @@ function VacaGlobe({ started, selectedRegionId, onRegionClick, onReady }: VacaGl
         const region = geo.features.find((g: any) => g.properties.regionId === id);
         const center = region?.properties?.center ?? [e.lngLat.lng, e.lngLat.lat];
         clickHandler.current(id, region?.properties?.name ?? '', center);
+      });
+
+      const openIncident = (e: maplibregl.MapLayerMouseEvent) => {
+        const f = e.features?.[0];
+        const incident = incidentsRef.current.find(
+          (i) => i.id === f?.properties?.id,
+        );
+        if (incident) incidentHandler.current?.(incident);
+      };
+      ['vaquita-orb', 'signal-lucero'].forEach((layer) => {
+        map.on('click', layer, openIncident);
+        map.on('mousemove', layer, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', layer, () => {
+          map.getCanvas().style.cursor = '';
+        });
       });
 
       setReady(true);
@@ -322,6 +404,25 @@ function VacaGlobe({ started, selectedRegionId, onRegionClick, onReady }: VacaGl
       }
     }
   }, [ready, selectedRegionId]);
+
+  // ── Actualizar puntos Vaquita cuando cambia el feed ──
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    const source = mapRef.current.getSource('vaquitas') as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+    const features = incidents
+      .filter((i) => i.latitude != null && i.longitude != null)
+      .map((i) => ({
+        type: 'Feature',
+        properties: {
+          id: i.id,
+          donationStatus: i.donationStatus,
+          color: CATEGORY_COLOR[i.category] ?? '#A6C2D4',
+        },
+        geometry: { type: 'Point', coordinates: [i.longitude!, i.latitude!] },
+      }));
+    source.setData({ type: 'FeatureCollection', features } as any);
+  }, [ready, incidents]);
 
   return <div ref={containerRef} className="absolute inset-0 h-full w-full" />;
 }
