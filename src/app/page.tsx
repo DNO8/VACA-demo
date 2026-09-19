@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid } from 'lucide-react';
+import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
 import RegionPanel, { TxEntry } from '@/components/RegionPanel';
 import VaquitaDetail from '@/components/VaquitaDetail';
 import VaquitaCards from '@/components/VaquitaCards';
+import AdminPanel from '@/components/AdminPanel';
 import type { Step } from '@/components/Tour';
 import { getDisaster, SEVERITY_COLOR, REGION_NAMES } from '@/lib/chile';
 import { DemoAccounts, setupDemo, explorerTx } from '@/lib/stellar';
+import { AdminSession, connectAdmin } from '@/lib/admin';
 import {
   VaquitaIncident,
   VaquitaFilter,
@@ -138,6 +140,21 @@ export default function Home() {
   });
   // Wallet del donante — mock: conectar habilita el voto comunitario.
   const [walletConnected, setWalletConnected] = useState(false);
+  // Curaduria — wallet admin real (Freighter) verificada por el servidor.
+  const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminError, setAdminError] = useState('');
+
+  const loadFeed = useCallback(async () => {
+    const useMock =
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('mock');
+    const rows =
+      useMock || !SUPABASE_URL
+        ? MOCK_INCIDENTS
+        : await fetchVaquitas(SUPABASE_URL);
+    setIncidents(rows.length ? rows : MOCK_INCIDENTS);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,18 +162,21 @@ export default function Home() {
       .then((r) => r.json())
       .then((g) => !cancelled && setGeojson(g))
       .catch(() => {});
-    const useMock =
-      typeof window !== 'undefined' &&
-      new URLSearchParams(window.location.search).has('mock');
-    (useMock || !SUPABASE_URL
-      ? Promise.resolve(MOCK_INCIDENTS)
-      : fetchVaquitas(SUPABASE_URL)
-    ).then((rows) => {
-      if (!cancelled) setIncidents(rows.length ? rows : MOCK_INCIDENTS);
-    });
+    loadFeed().then(() => cancelled && void 0);
     return () => {
       cancelled = true;
     };
+  }, [loadFeed]);
+
+  const handleAdminConnect = useCallback(async () => {
+    setAdminError('');
+    try {
+      const session = await connectAdmin(SUPABASE_URL);
+      setAdminSession(session);
+      setAdminOpen(true);
+    } catch (e: any) {
+      setAdminError(e?.message ?? 'No se pudo conectar la wallet');
+    }
   }, []);
 
   const visibleIncidents = useMemo(
@@ -294,6 +314,21 @@ export default function Home() {
           <div data-tour="status" className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <StatusPill accounts={accounts} setupMsg={setupMsg} />
             <button
+              onClick={
+                adminSession
+                  ? () => setAdminOpen((o) => !o)
+                  : handleAdminConnect
+              }
+              className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
+              title={adminError || 'Curaduría (wallet admin)'}
+            >
+              <ShieldCheck size={12} className="md:hidden" />
+              <ShieldCheck size={13} className="hidden md:block" />
+              <span className="hidden md:inline">
+                {adminSession ? 'Curaduría' : 'Admin'}
+              </span>
+            </button>
+            <button
               onClick={() =>
                 setViewMode((m) => (m === 'map' ? 'cards' : 'map'))
               }
@@ -420,6 +455,24 @@ export default function Home() {
           }}
           onClose={() => setViewMode('map')}
         />
+      )}
+
+      {/* Panel de curaduria (wallet admin) */}
+      {adminSession && adminOpen && (
+        <AdminPanel
+          session={adminSession}
+          supabaseUrl={SUPABASE_URL}
+          incidents={incidents}
+          onChanged={loadFeed}
+          onClose={() => setAdminOpen(false)}
+        />
+      )}
+
+      {/* Error de conexión admin */}
+      {adminError && !adminSession && (
+        <div className="absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-lg border border-red-400/40 bg-[var(--bg-panel)] px-3 py-2 text-xs text-red-400">
+          {adminError}
+        </div>
       )}
 
       {/* Tour guiado paso a paso */}
