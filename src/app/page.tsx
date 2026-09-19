@@ -393,7 +393,7 @@ export default function Home() {
 
       {/* Registro de transacciones */}
       {started && txLog.length > 0 && (
-        <div className="pointer-events-auto absolute bottom-3 left-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] p-2.5 backdrop-blur md:bottom-4 md:left-auto md:right-4 md:w-72 md:p-3">
+        <div className="pointer-events-auto absolute bottom-24 right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] p-2.5 backdrop-blur md:bottom-4 md:right-12 md:w-72 md:p-3">
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--text-muted)] md:mb-2">
             <Activity size={12} className="text-[var(--cyan-primary)]" /> Transacciones
           </div>
@@ -421,7 +421,7 @@ export default function Home() {
 
       {/* Panel lateral de región (flujo legacy, ?legacy=1) */}
       <div
-        className={`absolute right-0 top-0 z-30 h-dvh w-full transform transition-transform duration-300 md:w-[380px] ${
+        className={`absolute right-0 top-0 z-30 h-dvh w-full transform transition-transform duration-300 md:w-1/4 md:min-w-[340px] md:max-w-[460px] ${
           selected && legacyMode ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

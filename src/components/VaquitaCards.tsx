@@ -55,7 +55,7 @@ export default function VaquitaCards({
   );
 
   return (
-    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-[var(--border-primary)] bg-[var(--bg-panel)] md:w-[380px]">
+    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-[var(--border-primary)] bg-[var(--bg-panel)] md:w-1/4 md:min-w-[340px] md:max-w-[460px]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-secondary)] p-3">
         <h2 className="text-sm font-bold text-[var(--text-heading)]">
           Señales y Vaquitas

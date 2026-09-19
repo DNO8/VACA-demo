@@ -43,7 +43,7 @@ export default function AdminPanel({
   };
 
   return (
-    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l border-[var(--gold-primary)]/40 bg-[var(--bg-panel)] md:w-[400px]">
+    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l border-[var(--gold-primary)]/40 bg-[var(--bg-panel)] md:w-1/4 md:min-w-[340px] md:max-w-[460px]">
       <div className="flex items-center gap-2 border-b border-[var(--border-secondary)] p-3">
         <ShieldCheck size={15} className="text-[var(--gold-primary)]" />
         <div className="min-w-0 flex-1">

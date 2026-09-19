@@ -108,7 +108,7 @@ export default function VaquitaAside({
   };
 
   return (
-    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-[var(--border-secondary)] bg-[var(--bg-panel)] md:w-[380px]">
+    <div className="vaca-soft-blur absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-[var(--border-secondary)] bg-[var(--bg-panel)] md:w-1/4 md:min-w-[340px] md:max-w-[460px]">
       {/* Header */}
       <div className="flex items-center gap-2.5 border-b border-[var(--border-secondary)] p-3.5">
         <span
