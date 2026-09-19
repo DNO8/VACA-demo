@@ -293,6 +293,7 @@ export default function Home() {
       {/* Globo */}
       <VacaGlobe
         started={started}
+        legacy={legacyMode}
         selectedRegionId={selected?.id ?? null}
         onRegionClick={handleRegionClick}
         incidents={visibleIncidents}
@@ -361,21 +362,31 @@ export default function Home() {
       {started && !selected && (
         <div data-tour="legend" className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] p-2.5 backdrop-blur md:bottom-4 md:left-4 md:p-3">
           <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--text-muted)] md:mb-2">
-            Focos
+            Señales
           </div>
           <div className="space-y-1 md:space-y-1.5">
-            {(['critico', 'alto', 'medio'] as const).map((s) => (
-              <div key={s} className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
-                <span
-                  className="h-2 w-2 rounded-full md:h-2.5 md:w-2.5"
-                  style={{ background: SEVERITY_COLOR[s], boxShadow: `0 0 8px ${SEVERITY_COLOR[s]}` }}
-                />
-                {s === 'critico' ? 'Crítico' : s === 'alto' ? 'Alto' : 'Medio'}
-              </div>
-            ))}
+            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
+              <span
+                className="h-2.5 w-2.5 rounded-full md:h-3 md:w-3"
+                style={{ background: '#F5C542', boxShadow: '0 0 10px #F5C542' }}
+              />
+              Vaquita — podés donar
+            </div>
+            <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
+              <span className="flex gap-0.5">
+                {['#F0544F', '#F5C542', '#5CB8E4', '#C86BF0'].map((c) => (
+                  <span
+                    key={c}
+                    className="h-1.5 w-1.5 rounded-full md:h-2 md:w-2"
+                    style={{ background: c }}
+                  />
+                ))}
+              </span>
+              Señal — vota para promoverla
+            </div>
           </div>
           <div className="mt-1.5 hidden border-t border-[var(--border-secondary)] pt-1.5 text-[10px] text-[var(--text-muted)] md:block">
-            Haz clic en una región afectada
+            Haz clic en un punto para ver el detalle
           </div>
         </div>
       )}

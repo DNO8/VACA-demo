@@ -14,8 +14,10 @@ const CHILE_VIEW = { center: [-71, -38] as [number, number], zoom: 3.9, pitch: 2
 
 interface VacaGlobeProps {
   started: boolean;
-  selectedRegionId: number | null;
-  onRegionClick: (regionId: number, name: string, center: [number, number]) => void;
+  // Capas legacy (sectores de regiones chilenas + focos) solo si legacy=true
+  legacy?: boolean;
+  selectedRegionId?: number | null;
+  onRegionClick?: (regionId: number, name: string, center: [number, number]) => void;
   incidents?: VaquitaIncident[];
   onIncidentClick?: (incident: VaquitaIncident) => void;
   onReady?: () => void;
@@ -23,48 +25,31 @@ interface VacaGlobeProps {
 
 const DISASTER_IDS = new Set(DISASTERS.map((d) => d.regionId));
 
-// Calcular bounding box de un polígono/multipolígono GeoJSON
-function getFeatureBounds(feature: any): maplibregl.LngLatBoundsLike | null {
-  const coords = feature?.geometry?.coordinates;
-  if (!coords || !Array.isArray(coords)) return null;
-  let minLng = Infinity;
-  let minLat = Infinity;
-  let maxLng = -Infinity;
-  let maxLat = -Infinity;
-
-  const visit = (ring: number[]) => {
-    if (!Array.isArray(ring) || ring.length < 2) return;
-    const lng = Number(ring[0]);
-    const lat = Number(ring[1]);
-    if (Number.isFinite(lng) && Number.isFinite(lat)) {
-      minLng = Math.min(minLng, lng);
-      minLat = Math.min(minLat, lat);
-      maxLng = Math.max(maxLng, lng);
-      maxLat = Math.max(maxLat, lat);
+/** Geolocaliza al visitante: GPS del navegador → fallback IP (Vercel). */
+async function locateVisitor(): Promise<[number, number] | null> {
+  const gps = await new Promise<[number, number] | null>((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      return resolve(null);
     }
-  };
-
-  const walk = (node: any) => {
-    if (Array.isArray(node)) {
-      if (node.length === 2 && typeof node[0] === 'number') {
-        visit(node);
-      } else {
-        node.forEach(walk);
-      }
-    }
-  };
-
-  walk(coords);
-  if (!Number.isFinite(minLng)) return null;
-  return [
-    [minLng, minLat],
-    [maxLng, maxLat],
-  ];
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve([pos.coords.longitude, pos.coords.latitude]),
+      () => resolve(null),
+      { timeout: 6000, maximumAge: 300000 },
+    );
+  });
+  if (gps) return gps;
+  try {
+    const res = await fetch('/api/geo');
+    const body = await res.json();
+    if (body?.center) return body.center as [number, number];
+  } catch {}
+  return null;
 }
 
 function VacaGlobe({
   started,
-  selectedRegionId,
+  legacy = false,
+  selectedRegionId = null,
   onRegionClick,
   incidents = [],
   onIncidentClick,
@@ -75,6 +60,7 @@ function VacaGlobe({
   const [ready, setReady] = useState(false);
   const hoveredId = useRef<number | null>(null);
   const geoRef = useRef<any>(null);
+  const visitorRef = useRef<[number, number] | null>(null);
   const clickHandler = useRef(onRegionClick);
   clickHandler.current = onRegionClick;
   const incidentHandler = useRef(onIncidentClick);
@@ -123,106 +109,123 @@ function VacaGlobe({
         /* sky opcional */
       }
 
-      // ── Cargar regiones ──
-      let geo: any;
-      try {
-        geo = await fetch('/chile-regions.geojson').then((r) => r.json());
-      } catch (e) {
-        console.error('[VACA] No se pudo cargar chile-regions.geojson', e);
-        return;
+      // ── Capas legacy (sectores + focos) solo en modo ?legacy ──
+      if (legacy) {
+        try {
+          const geo = await fetch('/chile-regions.geojson').then((r) => r.json());
+          geoRef.current = geo;
+          geo.features.forEach((f: any) => {
+            const d = DISASTERS.find((x) => x.regionId === f.properties.regionId);
+            f.properties.hasDisaster = d ? 1 : 0;
+            f.properties.color = d ? SEVERITY_COLOR[d.severity] : '#1E3240';
+            f.id = f.properties.regionId;
+          });
+          map.addSource('regions', { type: 'geojson', data: geo, promoteId: 'regionId' });
+          map.addLayer({
+            id: 'regions-fill',
+            type: 'fill',
+            source: 'regions',
+            paint: {
+              'fill-color': ['get', 'color'],
+              'fill-opacity': [
+                'case',
+                ['boolean', ['feature-state', 'selected'], false],
+                0.7,
+                ['boolean', ['feature-state', 'hover'], false],
+                0.55,
+                ['==', ['get', 'hasDisaster'], 1],
+                0.35,
+                0.12,
+              ],
+            },
+          });
+          map.addLayer({
+            id: 'regions-line',
+            type: 'line',
+            source: 'regions',
+            paint: {
+              'line-color': [
+                'case',
+                ['==', ['get', 'hasDisaster'], 1],
+                ['get', 'color'],
+                '#A6C2D4',
+              ],
+              'line-width': [
+                'case',
+                ['boolean', ['feature-state', 'selected'], false],
+                2.4,
+                ['boolean', ['feature-state', 'hover'], false],
+                1.6,
+                0.7,
+              ],
+              'line-opacity': 0.9,
+            },
+          });
+
+          const fociFeatures = DISASTERS.map((d) => {
+            const region = geo.features.find((f: any) => f.properties.regionId === d.regionId);
+            const center = region?.properties?.center ?? [-71, -38];
+            return {
+              type: 'Feature',
+              properties: { regionId: d.regionId, color: SEVERITY_COLOR[d.severity] },
+              geometry: { type: 'Point', coordinates: center },
+            };
+          });
+          map.addSource('foci', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: fociFeatures } as any,
+          });
+          map.addLayer({
+            id: 'foci-core',
+            type: 'circle',
+            source: 'foci',
+            paint: {
+              'circle-radius': 4,
+              'circle-color': ['get', 'color'],
+              'circle-stroke-color': '#ffffff',
+              'circle-stroke-width': 1,
+            },
+          });
+
+          const setHover = (id: number | null) => {
+            if (hoveredId.current !== null) {
+              map.setFeatureState({ source: 'regions', id: hoveredId.current }, { hover: false });
+            }
+            hoveredId.current = id;
+            if (id !== null) {
+              map.setFeatureState({ source: 'regions', id }, { hover: true });
+            }
+          };
+          map.on('mousemove', 'regions-fill', (e) => {
+            if (!e.features?.length) return;
+            map.getCanvas().style.cursor = 'pointer';
+            setHover(e.features[0].properties!.regionId as number);
+          });
+          map.on('mouseleave', 'regions-fill', () => {
+            map.getCanvas().style.cursor = '';
+            setHover(null);
+          });
+          map.on('click', 'regions-fill', (e) => {
+            const f = e.features?.[0];
+            if (!f) return;
+            const id = f.properties!.regionId as number;
+            const name = f.properties!.name as string;
+            const center = (f.properties!.center as any) ?? [e.lngLat.lng, e.lngLat.lat];
+            const c = typeof center === 'string' ? JSON.parse(center) : center;
+            clickHandler.current?.(id, name, c);
+          });
+          map.on('click', 'foci-core', (e) => {
+            const f = e.features?.[0];
+            if (!f) return;
+            const id = f.properties!.regionId as number;
+            const region = geo.features.find((g: any) => g.properties.regionId === id);
+            const center = region?.properties?.center ?? [e.lngLat.lng, e.lngLat.lat];
+            clickHandler.current?.(id, region?.properties?.name ?? '', center);
+          });
+        } catch (e) {
+          console.error('[VACA] No se pudo cargar chile-regions.geojson', e);
+        }
       }
-
-      // Enriquecer features con severidad/estado de catástrofe
-      geoRef.current = geo;
-      geo.features.forEach((f: any) => {
-        const d = DISASTERS.find((x) => x.regionId === f.properties.regionId);
-        f.properties.hasDisaster = d ? 1 : 0;
-        f.properties.color = d ? SEVERITY_COLOR[d.severity] : '#1E3240';
-        f.id = f.properties.regionId;
-      });
-
-      map.addSource('regions', { type: 'geojson', data: geo, promoteId: 'regionId' });
-
-      // Relleno de regiones
-      map.addLayer({
-        id: 'regions-fill',
-        type: 'fill',
-        source: 'regions',
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            0.7,
-            ['boolean', ['feature-state', 'hover'], false],
-            0.55,
-            ['==', ['get', 'hasDisaster'], 1],
-            0.35,
-            0.12,
-          ],
-        },
-      });
-
-      // Borde de regiones
-      map.addLayer({
-        id: 'regions-line',
-        type: 'line',
-        source: 'regions',
-        paint: {
-          'line-color': [
-            'case',
-            ['==', ['get', 'hasDisaster'], 1],
-            ['get', 'color'],
-            '#A6C2D4',
-          ],
-          'line-width': [
-            'case',
-            ['boolean', ['feature-state', 'selected'], false],
-            2.4,
-            ['boolean', ['feature-state', 'hover'], false],
-            1.6,
-            0.7,
-          ],
-          'line-opacity': 0.9,
-        },
-      });
-
-      // ── Focos de catástrofe (puntos) ──
-      const fociFeatures = DISASTERS.map((d) => {
-        const region = geo.features.find((f: any) => f.properties.regionId === d.regionId);
-        const center = region?.properties?.center ?? [-71, -38];
-        return {
-          type: 'Feature',
-          properties: { regionId: d.regionId, color: SEVERITY_COLOR[d.severity] },
-          geometry: { type: 'Point', coordinates: center },
-        };
-      });
-      map.addSource('foci', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: fociFeatures } as any,
-      });
-      map.addLayer({
-        id: 'foci-pulse',
-        type: 'circle',
-        source: 'foci',
-        paint: {
-          'circle-radius': 8,
-          'circle-color': ['get', 'color'],
-          'circle-opacity': 0.25,
-          'circle-blur': 0.6,
-        },
-      });
-      map.addLayer({
-        id: 'foci-core',
-        type: 'circle',
-        source: 'foci',
-        paint: {
-          'circle-radius': 4,
-          'circle-color': ['get', 'color'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1,
-        },
-      });
 
       // ── Señales y Vaquitas (puntos reales del feed) ──
       // orbes = donationStatus 'vaquita' | 'community' (brillantes, dorado)
@@ -275,65 +278,29 @@ function VacaGlobe({
         },
       });
 
-      // Animación de pulso
+      // Pulso en los orbes (los que se pueden donar)
       let t = 0;
       const pulse = () => {
         t += 0.06;
-        const r = 8 + Math.sin(t) * 6 + 6;
-        const op = 0.35 - (Math.sin(t) * 0.5 + 0.5) * 0.3;
-        if (map.getLayer('foci-pulse')) {
-          map.setPaintProperty('foci-pulse', 'circle-radius', r);
-          map.setPaintProperty('foci-pulse', 'circle-opacity', Math.max(0.05, op));
+        const r = 16 + Math.sin(t) * 5 + 3;
+        const op = 0.3 - (Math.sin(t) * 0.5 + 0.5) * 0.2;
+        if (map.getLayer('vaquita-glow')) {
+          map.setPaintProperty('vaquita-glow', 'circle-radius', r);
+          map.setPaintProperty('vaquita-glow', 'circle-opacity', Math.max(0.08, op));
         }
         (map as any)._vacaPulse = requestAnimationFrame(pulse);
       };
       pulse();
-
-      // ── Interacción ──
-      const setHover = (id: number | null) => {
-        if (hoveredId.current !== null) {
-          map.setFeatureState({ source: 'regions', id: hoveredId.current }, { hover: false });
-        }
-        hoveredId.current = id;
-        if (id !== null) {
-          map.setFeatureState({ source: 'regions', id }, { hover: true });
-        }
-      };
-
-      map.on('mousemove', 'regions-fill', (e) => {
-        if (!e.features?.length) return;
-        map.getCanvas().style.cursor = 'pointer';
-        setHover(e.features[0].properties!.regionId as number);
-      });
-      map.on('mouseleave', 'regions-fill', () => {
-        map.getCanvas().style.cursor = '';
-        setHover(null);
-      });
-      map.on('click', 'regions-fill', (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const id = f.properties!.regionId as number;
-        const name = f.properties!.name as string;
-        const center = (f.properties!.center as any) ?? [e.lngLat.lng, e.lngLat.lat];
-        const c = typeof center === 'string' ? JSON.parse(center) : center;
-        clickHandler.current(id, name, c);
-      });
-      map.on('click', 'foci-core', (e) => {
-        const f = e.features?.[0];
-        if (!f) return;
-        const id = f.properties!.regionId as number;
-        const d = DISASTERS.find((x) => x.regionId === id);
-        const region = geo.features.find((g: any) => g.properties.regionId === id);
-        const center = region?.properties?.center ?? [e.lngLat.lng, e.lngLat.lat];
-        clickHandler.current(id, region?.properties?.name ?? '', center);
-      });
 
       const openIncident = (e: maplibregl.MapLayerMouseEvent) => {
         const f = e.features?.[0];
         const incident = incidentsRef.current.find(
           (i) => i.id === f?.properties?.id,
         );
-        if (incident) incidentHandler.current?.(incident);
+        if (incident) {
+          map.flyTo({ center: [e.lngLat.lng, e.lngLat.lat], zoom: 9, duration: 1200 });
+          incidentHandler.current?.(incident);
+        }
       };
       ['vaquita-orb', 'signal-lucero'].forEach((layer) => {
         map.on('click', layer, openIncident);
@@ -343,6 +310,11 @@ function VacaGlobe({
         map.on('mouseleave', layer, () => {
           map.getCanvas().style.cursor = '';
         });
+      });
+
+      // Geolocalización temprana: el prompt de GPS aparece mientras carga.
+      locateVisitor().then((c) => {
+        visitorRef.current = c;
       });
 
       setReady(true);
@@ -355,58 +327,41 @@ function VacaGlobe({
       mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [legacy]);
 
-  // ── Volar a Chile cuando inicia la demo ──
+  // ── Volar al iniciar: país del visitante si se resolvió, si no Chile ──
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const map = mapRef.current;
     if (started) {
-      map.flyTo({ ...CHILE_VIEW, duration: 4000, essential: true });
+      const target = visitorRef.current;
+      if (target) {
+        map.flyTo({ center: target, zoom: 4.2, pitch: 25, duration: 4000, essential: true });
+      } else {
+        map.flyTo({ ...CHILE_VIEW, duration: 4000, essential: true });
+      }
     } else {
       map.flyTo({ ...GLOBE_VIEW, duration: 2500, essential: true });
     }
   }, [ready, started]);
 
-  // ── Resaltar / volar a región seleccionada ──
+  // ── Resaltar / volar a región seleccionada (legacy) ──
   useEffect(() => {
-    if (!ready || !mapRef.current) return;
+    if (!ready || !legacy || !mapRef.current) return;
     const map = mapRef.current;
-    // limpiar selección previa
     DISASTER_IDS.forEach((id) => map.setFeatureState({ source: 'regions', id }, { selected: false }));
     if (selectedRegionId != null) {
       map.setFeatureState({ source: 'regions', id: selectedRegionId }, { selected: true });
-
-      // Zoom a la región seleccionada
       const feature = geoRef.current?.features?.find(
         (f: any) => f.properties?.regionId === selectedRegionId
       );
-      if (feature) {
-        const center = feature.properties?.center;
-        if (center) {
-          const c = typeof center === 'string' ? JSON.parse(center) : center;
-          map.flyTo({
-            center: c,
-            zoom: 7.2,
-            pitch: 40,
-            bearing: 0,
-            duration: 1500,
-            essential: true,
-          });
-        } else {
-          const bounds = getFeatureBounds(feature);
-          if (bounds) {
-            map.fitBounds(bounds, {
-              padding: { top: 120, bottom: 120, left: 120, right: 420 },
-              duration: 1500,
-              maxZoom: 8,
-              essential: true,
-            });
-          }
-        }
+      const center = feature?.properties?.center;
+      if (center) {
+        const c = typeof center === 'string' ? JSON.parse(center) : center;
+        map.flyTo({ center: c, zoom: 7.2, pitch: 40, bearing: 0, duration: 1500, essential: true });
       }
     }
-  }, [ready, selectedRegionId]);
+  }, [ready, legacy, selectedRegionId]);
 
   // ── Actualizar puntos Vaquita cuando cambia el feed ──
   useEffect(() => {
