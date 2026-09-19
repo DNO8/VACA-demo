@@ -18,7 +18,7 @@ import {
   CATEGORY_COLOR,
   VAQUITA_GOLD,
 } from '@/lib/vaquitas';
-import { donateToPool } from '@/lib/donate';
+import { donateToPool, getBalance } from '@/lib/donate';
 
 interface VaquitaAsideProps {
   incident: VaquitaIncident;
@@ -43,6 +43,7 @@ export default function VaquitaAside({
   onClose,
 }: VaquitaAsideProps) {
   const [wallet, setWallet] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
   const [busy, setBusy] = useState<'wallet' | 'vote' | 'donate' | null>(null);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState('5');
@@ -61,6 +62,7 @@ export default function VaquitaAside({
       const { address, error } = await requestAccess();
       if (error || !address) throw new Error(error?.message ?? 'Acceso denegado');
       setWallet(address);
+      setBalance(await getBalance(address));
       return address;
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo conectar la wallet');
@@ -97,6 +99,7 @@ export default function VaquitaAside({
     try {
       const res = await donateToPool(addr, String(parsedAmount), incident.id);
       setDonationTx(res.explorerUrl);
+      setBalance(await getBalance(addr));
     } catch (e: any) {
       setError(e?.message ?? 'Donación fallida');
     } finally {
@@ -168,6 +171,12 @@ export default function VaquitaAside({
             ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}`
             : 'Conectar wallet (Freighter)'}
         </button>
+        {wallet && balance != null && (
+          <div className="-mt-1 text-center text-[11px] text-[var(--text-muted)]">
+            Balance: <span className="font-semibold text-[var(--text-primary)]">{balance} XLM</span>
+            <span className="text-[10px]"> · testnet</span>
+          </div>
+        )}
 
         {/* Voto */}
         <div className="rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-secondary)] p-3">

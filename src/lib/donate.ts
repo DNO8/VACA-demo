@@ -51,6 +51,17 @@ async function fundIfMissing(pub: string): Promise<void> {
   }
 }
 
+/** Balance XLM nativo de una cuenta testnet (null si no existe). */
+export async function getBalance(publicKey: string): Promise<string | null> {
+  try {
+    const acc = await getServer().loadAccount(publicKey);
+    const native = acc.balances.find((b: any) => b.asset_type === 'native');
+    return native ? Number(native.balance).toFixed(2) : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface DonationResult {
   txHash: string;
   explorerUrl: string;
