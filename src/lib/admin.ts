@@ -79,7 +79,7 @@ export async function setDonationStatus(
   session: AdminSession,
   incidentId: string,
   donationStatus: 'signal' | 'community' | 'vaquita',
-): Promise<void> {
+): Promise<{ stellarPubkey: string | null }> {
   const ts = Math.floor(Date.now() / 1000);
   const signature = await signChallenge(
     canonical('set_status', incidentId, donationStatus, ts),
@@ -94,4 +94,28 @@ export async function setDonationStatus(
     donation_status: donationStatus,
   });
   if (!res.ok) throw new Error(res.body?.error ?? 'update_failed');
+  return { stellarPubkey: res.body?.stellar_pubkey ?? null };
+}
+
+/** Registra la tx del claimable balance de una Vaquita (firma + rol). */
+export async function recordClaim(
+  supabaseUrl: string,
+  session: AdminSession,
+  incidentId: string,
+  claimTx: string,
+): Promise<void> {
+  const ts = Math.floor(Date.now() / 1000);
+  const signature = await signChallenge(
+    canonical('claim', incidentId, claimTx, ts),
+    session.publicKey,
+  );
+  const res = await postAdmin(supabaseUrl, {
+    action: 'claim',
+    public_key: session.publicKey,
+    signature,
+    timestamp: ts,
+    incident_id: incidentId,
+    claim_tx: claimTx,
+  });
+  if (!res.ok) throw new Error(res.body?.error ?? 'claim_failed');
 }

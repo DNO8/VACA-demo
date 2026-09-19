@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { X, ShieldCheck, Loader2, Vote } from 'lucide-react';
 import { VaquitaIncident, CATEGORY_LABEL, CATEGORY_COLOR } from '@/lib/vaquitas';
-import { AdminSession, setDonationStatus } from '@/lib/admin';
+import { AdminSession, setDonationStatus, recordClaim } from '@/lib/admin';
+import { createVaquitaClaim } from '@/lib/claim';
 
 interface AdminPanelProps {
   session: AdminSession;
@@ -28,12 +29,39 @@ export default function AdminPanel({
 }: AdminPanelProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  // Tras promover: si el reportante tiene wallet, convierte las donaciones
+  // acumuladas en un claimable balance hacia su pubkey y lo registra.
+  const tryClaim = async (
+    incident: VaquitaIncident,
+    stellarPubkey: string | null,
+  ) => {
+    if (!stellarPubkey) {
+      setNotice('Promovida. El reportante no tiene wallet Stellar: sin claim.');
+      return;
+    }
+    try {
+      const claim = await createVaquitaClaim(stellarPubkey, incident.id);
+      await recordClaim(supabaseUrl, session, incident.id, claim.txHash);
+      setNotice(`Ayuda preparada: ${claim.amount} XLM reclamables`);
+    } catch (e: any) {
+      setNotice(`Promovida; el claim falló: ${e?.message ?? 'error'}`);
+    }
+  };
 
   const act = async (incident: VaquitaIncident, status: 'signal' | 'community' | 'vaquita') => {
     setBusy(incident.id);
     setError('');
+    setNotice('');
     try {
-      await setDonationStatus(supabaseUrl, session, incident.id, status);
+      const { stellarPubkey } = await setDonationStatus(
+        supabaseUrl,
+        session,
+        incident.id,
+        status,
+      );
+      if (status !== 'signal') await tryClaim(incident, stellarPubkey);
       onChanged();
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo actualizar');
@@ -67,6 +95,11 @@ export default function AdminPanel({
       {error && (
         <p className="border-b border-[var(--border-secondary)] px-3 py-2 text-xs text-red-400">
           {error}
+        </p>
+      )}
+      {notice && (
+        <p className="border-b border-[var(--border-secondary)] px-3 py-2 text-xs text-[var(--text-muted)]">
+          {notice}
         </p>
       )}
 
@@ -111,6 +144,15 @@ export default function AdminPanel({
                     ) : (
                       next.label
                     )}
+                  </button>
+                )}
+                {incident.donationStatus !== 'signal' && !incident.claimable && (
+                  <button
+                    disabled={busy != null}
+                    onClick={() => act(incident, incident.donationStatus)}
+                    className="flex-1 rounded border border-[var(--border-secondary)] px-2 py-1.5 text-[11px] text-[var(--text-primary)] transition hover:bg-[var(--bg-primary)] disabled:opacity-40"
+                  >
+                    Preparar ayuda
                   </button>
                 )}
                 {incident.donationStatus !== 'signal' && (

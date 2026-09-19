@@ -17,6 +17,8 @@ export interface VaquitaIncident {
   createdAt: string;
   /** Votos comunitarios acumulados — mock hasta que exista el backend de votos. */
   votes: number;
+  /** True cuando el pool ya creó el claimable balance hacia el receptor. */
+  claimable?: boolean;
 }
 
 export const CATEGORY_LABEL: Record<VaquitaIncident['category'], string> = {
