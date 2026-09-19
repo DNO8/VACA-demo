@@ -95,7 +95,7 @@ export default function VaquitaAside({
 
   const donate = async () => {
     if (!amountValid) {
-      setError('Monto inválido — usá un número positivo');
+      setError('Monto inválido — usa un número positivo');
       return;
     }
     const addr = wallet ?? (await connect());

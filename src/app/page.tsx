@@ -377,7 +377,7 @@ export default function Home() {
                 className="h-2.5 w-2.5 rounded-full md:h-3 md:w-3"
                 style={{ background: '#F5C542', boxShadow: '0 0 10px #F5C542' }}
               />
-              Vaquita — podés donar
+              Vaquita — puedes donar
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
               <span className="flex gap-0.5">
