@@ -25,19 +25,8 @@ interface VacaGlobeProps {
 
 const DISASTER_IDS = new Set(DISASTERS.map((d) => d.regionId));
 
-/** Geolocaliza al visitante: GPS del navegador → fallback IP (Vercel). */
-async function locateVisitor(): Promise<[number, number] | null> {
-  const gps = await new Promise<[number, number] | null>((resolve) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      return resolve(null);
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve([pos.coords.longitude, pos.coords.latitude]),
-      () => resolve(null),
-      { timeout: 6000, maximumAge: 300000 },
-    );
-  });
-  if (gps) return gps;
+/** Centro del visitante por IP (Vercel) — silencioso, sin permiso. */
+async function locateByIp(): Promise<[number, number] | null> {
   try {
     const res = await fetch('/api/geo');
     const body = await res.json();
@@ -312,10 +301,23 @@ function VacaGlobe({
         });
       });
 
-      // Geolocalización temprana: el prompt de GPS aparece mientras carga.
-      locateVisitor().then((c) => {
+      // Centro por IP: silencioso, sin permiso — centra al visitante.
+      locateByIp().then((c) => {
         visitorRef.current = c;
       });
+
+      // Botón "mi ubicación" opt-in (como el target de Google Maps):
+      // el prompt de GPS solo aparece si el usuario lo pide — Brave y
+      // otros navegadores que bloquean prompts tempranos no se afectan.
+      map.addControl(
+        new maplibregl.GeolocateControl({
+          positionOptions: { timeout: 8000, maximumAge: 300000 },
+          fitBoundsOptions: { maxZoom: 9 },
+          showUserLocation: true,
+          trackUserLocation: false,
+        }),
+        'bottom-right',
+      );
 
       setReady(true);
       onReady?.();
