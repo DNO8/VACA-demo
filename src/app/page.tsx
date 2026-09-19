@@ -241,9 +241,16 @@ export default function Home() {
 
   const handleTourFinish = useCallback(() => setTourPhase('idle'), []);
 
+  // Flujo legacy (pool multifirma / Proof of Aid): solo con ?legacy=1.
+  const [legacyMode] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('legacy'),
+  );
+
   // Inicializa cuentas demo al arrancar la simulación
   useEffect(() => {
-    if (!started || accounts) return;
+    if (!started || !legacyMode || accounts) return;
     let cancelled = false;
     (async () => {
       try {
@@ -403,13 +410,13 @@ export default function Home() {
         </div>
       )}
 
-      {/* Panel lateral de región */}
+      {/* Panel lateral de región (flujo legacy, ?legacy=1) */}
       <div
         className={`absolute right-0 top-0 z-30 h-dvh w-full transform transition-transform duration-300 md:w-[380px] ${
-          selected ? 'translate-x-0' : 'translate-x-full'
+          selected && legacyMode ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
-        {selected && (
+        {selected && legacyMode && (
           <RegionPanel
             regionName={selected.name}
             disaster={disaster}
