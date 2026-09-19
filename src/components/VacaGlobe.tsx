@@ -20,6 +20,8 @@ interface VacaGlobeProps {
   onRegionClick?: (regionId: number, name: string, center: [number, number]) => void;
   incidents?: VaquitaIncident[];
   onIncidentClick?: (incident: VaquitaIncident) => void;
+  /** Incidente seleccionado fuera del mapa (tarjeta): vuela a su punto. */
+  focusIncident?: VaquitaIncident | null;
   onReady?: () => void;
 }
 
@@ -42,6 +44,7 @@ function VacaGlobe({
   onRegionClick,
   incidents = [],
   onIncidentClick,
+  focusIncident = null,
   onReady,
 }: VacaGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -287,11 +290,8 @@ function VacaGlobe({
           (i) => i.id === f?.properties?.id,
         );
         if (incident) {
-          map.flyTo({
-            center: [e.lngLat.lng, e.lngLat.lat],
-            zoom: 12,
-            duration: 1400,
-          });
+          // El vuelo lo dispara la effect de focusIncident — misma ruta
+          // para clicks en el mapa y en tarjetas.
           incidentHandler.current?.(incident);
         }
       };
@@ -368,6 +368,22 @@ function VacaGlobe({
       }
     }
   }, [ready, legacy, selectedRegionId]);
+
+  // ── Volar al punto del incidente seleccionado desde tarjetas/listas ──
+  // Las coordenadas ya vienen fuzzeadas del feed — el techo de zoom 12
+  // mantiene el radio de privacidad igual que el click en el orbe.
+  useEffect(() => {
+    if (!ready || !mapRef.current) return;
+    if (focusIncident?.latitude == null || focusIncident.longitude == null) {
+      return;
+    }
+    mapRef.current.flyTo({
+      center: [focusIncident.longitude, focusIncident.latitude],
+      zoom: 12,
+      duration: 1400,
+      essential: true,
+    });
+  }, [ready, focusIncident?.id]);
 
   // ── Actualizar puntos Vaquita cuando cambia el feed ──
   useEffect(() => {

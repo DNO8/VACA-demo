@@ -320,6 +320,7 @@ export default function Home() {
         onRegionClick={handleRegionClick}
         incidents={visibleIncidents}
         onIncidentClick={handleIncidentClick}
+        focusIncident={selectedIncident}
       />
 
       {/* HUD superior */}
