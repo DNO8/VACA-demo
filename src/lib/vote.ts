@@ -1,16 +1,27 @@
-// Voto comunitario firmado por wallet (SEP-53).
-// El servidor verifica la firma, aplica cooldown 5 min, dedup por incidente
-// y auto-promueve a 'community' al alcanzar el umbral.
+// Voto comunitario on-chain (testnet): el votante firma una tx
+// manageData {vq-vote: incidentId} en su propia cuenta — un ballot público e
+// inmutable. El servidor verifica la tx por hash contra Horizon, aplica
+// cooldown 5 min, dedup por incidente y auto-promueve al umbral.
 
-import { signMessage } from '@stellar/freighter-api';
+import {
+  TransactionBuilder,
+  Operation,
+  BASE_FEE,
+} from '@stellar/stellar-sdk';
+import { signTransaction } from '@stellar/freighter-api';
+import { getServer, NETWORK } from './stellar';
+import { fundIfMissing } from './donate';
 
 const VOTE_ENDPOINT = '/functions/v1/vaquita-vote';
+const VOTE_DATA_NAME = 'vq-vote';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export interface VoteResult {
   votes: number;
   donationStatus: string | null;
   cooldownS: number;
+  txHash: string;
+  explorerUrl: string;
 }
 
 export class VoteError extends Error {
@@ -22,24 +33,40 @@ export class VoteError extends Error {
   }
 }
 
-/** Firma el challenge canónico y emite el voto de la wallet. */
+/**
+ * Emite el voto: tx manageData firmada por el votante → Horizon → hash como
+ * prueba al backend. El ballot queda público en el ledger de testnet.
+ */
 export async function castVote(
   supabaseUrl: string,
   voterPublicKey: string,
   incidentId: string,
 ): Promise<VoteResult> {
-  const ts = Math.floor(Date.now() / 1000);
-  const canonical = ['vaca-vote', incidentId, String(ts)].join('\n');
+  const srv = getServer();
+  await fundIfMissing(voterPublicKey);
+  const source = await srv.loadAccount(voterPublicKey);
 
-  const res = await signMessage(canonical, { address: voterPublicKey });
-  if (res.error || !res.signedMessage) {
-    throw new VoteError(res.error?.message ?? 'Firma rechazada');
+  const tx = new TransactionBuilder(source, {
+    fee: BASE_FEE,
+    networkPassphrase: NETWORK,
+  })
+    .addOperation(
+      Operation.manageData({ name: VOTE_DATA_NAME, value: incidentId }),
+    )
+    .setTimeout(180)
+    .build();
+
+  const { signedTxXdr, error } = await signTransaction(tx.toXDR(), {
+    networkPassphrase: NETWORK,
+    address: voterPublicKey,
+  });
+  if (error || !signedTxXdr) {
+    throw new VoteError(error?.message ?? 'Firma rechazada');
   }
-  const signed = res.signedMessage;
-  const signature =
-    typeof signed === 'string'
-      ? signed
-      : Buffer.from(signed as unknown as Uint8Array).toString('base64');
+
+  const signed = TransactionBuilder.fromXDR(signedTxXdr, NETWORK);
+  const submitted = await srv.submitTransaction(signed);
+  const txHash = submitted.hash;
 
   const resp = await fetch(`${supabaseUrl}${VOTE_ENDPOINT}`, {
     method: 'POST',
@@ -50,8 +77,7 @@ export async function castVote(
     body: JSON.stringify({
       incident_id: incidentId,
       public_key: voterPublicKey,
-      signature,
-      timestamp: ts,
+      tx_hash: txHash,
     }),
   });
   const body = await resp.json().catch(() => ({}));
@@ -73,6 +99,8 @@ export async function castVote(
     votes: Number(body.votes ?? 0),
     donationStatus: body.donation_status ?? null,
     cooldownS: Number(body.cooldown_s ?? 300),
+    txHash,
+    explorerUrl: `https://stellar.expert/explorer/testnet/tx/${txHash}`,
   };
 }
 

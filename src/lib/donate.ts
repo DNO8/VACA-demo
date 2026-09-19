@@ -38,7 +38,8 @@ export function getPool(): PoolAccount {
   return pool;
 }
 
-async function fundIfMissing(pub: string): Promise<void> {
+/** Fondea con friendbot si la cuenta no existe en testnet. */
+export async function fundIfMissing(pub: string): Promise<void> {
   const srv = getServer();
   try {
     await srv.loadAccount(pub);

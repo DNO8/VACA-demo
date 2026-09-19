@@ -52,6 +52,7 @@ export default function VaquitaAside({
   const [amount, setAmount] = useState('5');
   const [donationTx, setDonationTx] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [voteTx, setVoteTx] = useState<string | null>(null);
 
   const color = CATEGORY_COLOR[incident.category] ?? '#A6C2D4';
   const promoted = incident.donationStatus !== 'signal';
@@ -89,6 +90,7 @@ export default function VaquitaAside({
         donationStatus: result.donationStatus,
       });
       setCooldown(result.cooldownS);
+      setVoteTx(result.explorerUrl);
     } catch (e: any) {
       if (e instanceof VoteError && e.retryAfter != null) {
         // El cooldown es estado, no error — lo muestra el contador.
@@ -236,9 +238,19 @@ export default function VaquitaAside({
             )}
           </button>
           <p className="mt-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
-            Tu wallet firma el voto (1 cada 5 min). En producción se exigirá
-            KYC o antigüedad de wallet contra Sybil.
+            El voto es una transacción testnet firmada por tu wallet (1 cada 5
+            min). En producción se exigirá KYC o antigüedad contra Sybil.
           </p>
+          {voteTx && (
+            <a
+              href={voteTx}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--cyan-primary)] hover:underline"
+            >
+              <ExternalLink size={11} /> Ver tu voto en la cadena
+            </a>
+          )}
         </div>
 
         {/* Donación */}
