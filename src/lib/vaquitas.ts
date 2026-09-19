@@ -85,11 +85,14 @@ function ringContains(ring: number[][], lng: number, lat: number): boolean {
   return inside;
 }
 
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
 /** Trae el feed público. Devuelve [] si el backend no responde. */
 export async function fetchVaquitas(supabaseUrl: string): Promise<VaquitaIncident[]> {
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/vaquita-feed`, {
       cache: 'no-store',
+      headers: SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {},
     });
     if (!res.ok) return [];
     const body = await res.json();

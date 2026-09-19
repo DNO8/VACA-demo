@@ -12,6 +12,7 @@ export interface AdminSession {
 }
 
 const ADMIN_ENDPOINT = '/functions/v1/vaquita-admin';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 function canonical(action: string, incidentId: string, status: string, ts: number) {
   return ['vaca-admin', action, incidentId, status, String(ts)].join('\n');
@@ -33,9 +34,15 @@ async function postAdmin(
   supabaseUrl: string,
   body: Record<string, unknown>,
 ): Promise<{ ok: boolean; status: number; body: any }> {
+  if (!supabaseUrl) {
+    return { ok: false, status: 0, body: { error: 'backend_no_configurado' } };
+  }
   const res = await fetch(`${supabaseUrl}${ADMIN_ENDPOINT}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {}),
+    },
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
