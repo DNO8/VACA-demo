@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
 import RegionPanel, { TxEntry } from '@/components/RegionPanel';
-import VaquitaDetail from '@/components/VaquitaDetail';
+import VaquitaAside from '@/components/VaquitaAside';
 import VaquitaCards from '@/components/VaquitaCards';
 import AdminPanel from '@/components/AdminPanel';
 import type { Step } from '@/components/Tour';
@@ -138,8 +138,6 @@ export default function Home() {
     regionId: null,
     donationStatus: null,
   });
-  // Wallet del donante — mock: conectar habilita el voto comunitario.
-  const [walletConnected, setWalletConnected] = useState(false);
   // Curaduria — wallet admin real (Freighter) verificada por el servidor.
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -427,9 +425,9 @@ export default function Home() {
         )}
       </div>
 
-      {/* Ficha Vaquita del punto seleccionado */}
+      {/* Aside del incidente seleccionado */}
       {selectedIncident && viewMode === 'map' && (
-        <VaquitaDetail
+        <VaquitaAside
           incident={selectedIncident}
           regionName={
             selectedIncident.latitude != null &&
@@ -442,8 +440,7 @@ export default function Home() {
                 )?.name ?? null
               : null
           }
-          walletConnected={walletConnected}
-          onConnectWallet={() => setWalletConnected(true)}
+          voteThreshold={COMMUNITY_VOTE_THRESHOLD}
           onVote={handleVote}
           onClose={() => setSelectedIncident(null)}
         />

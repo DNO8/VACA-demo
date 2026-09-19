@@ -95,8 +95,8 @@ function VacaGlobe({
         zoom: GLOBE_VIEW.zoom,
         attributionControl: false,
         // Privacidad: sin zoom a nivel calle — los puntos fuzzeados no
-        // deben resolver ubicaciones casa por casa. ~z11 = nivel comuna.
-        maxZoom: 11,
+        // deben resolver ubicaciones casa por casa. ~z12 = comuna/localidad.
+        maxZoom: 12,
       });
     } catch (e) {
       console.error('[VACA] No se pudo inicializar el mapa (WebGL?):', e);
