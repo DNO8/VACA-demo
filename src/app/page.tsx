@@ -177,6 +177,13 @@ export default function Home() {
     }
   }, []);
 
+  // El toast de error se auto-descarta a los 5 s.
+  useEffect(() => {
+    if (!adminError) return;
+    const t = setTimeout(() => setAdminError(''), 5000);
+    return () => clearTimeout(t);
+  }, [adminError]);
+
   const visibleIncidents = useMemo(
     () => filterVaquitas(incidents, geojson, filter),
     [incidents, geojson, filter],

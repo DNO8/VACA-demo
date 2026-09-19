@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   X,
   Vote,
@@ -82,6 +82,13 @@ export default function VaquitaAside({
       setBusy(null);
     }
   };
+
+  // El error se auto-descarta a los 5 s.
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(''), 5000);
+    return () => clearTimeout(t);
+  }, [error]);
 
   const parsedAmount = Number(amount.replace(',', '.'));
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
