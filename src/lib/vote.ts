@@ -75,3 +75,20 @@ export async function castVote(
     cooldownS: Number(body.cooldown_s ?? 300),
   };
 }
+
+/** Cooldown restante del votante (0 = puede votar ya). Sin side-effects. */
+export async function getVoteCooldown(
+  supabaseUrl: string,
+  voterPublicKey: string,
+): Promise<number> {
+  try {
+    const resp = await fetch(
+      `${supabaseUrl}${VOTE_ENDPOINT}?voter=${voterPublicKey}`,
+      { headers: SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {} },
+    );
+    const body = await resp.json();
+    return Math.max(0, Number(body?.retry_after ?? 0));
+  } catch {
+    return 0;
+  }
+}

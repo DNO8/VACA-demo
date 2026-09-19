@@ -19,7 +19,7 @@ import {
   VAQUITA_GOLD,
 } from '@/lib/vaquitas';
 import { donateToPool, getBalance } from '@/lib/donate';
-import { castVote, VoteError } from '@/lib/vote';
+import { castVote, getVoteCooldown, VoteError } from '@/lib/vote';
 
 interface VaquitaAsideProps {
   incident: VaquitaIncident;
@@ -51,6 +51,7 @@ export default function VaquitaAside({
   const [error, setError] = useState('');
   const [amount, setAmount] = useState('5');
   const [donationTx, setDonationTx] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
 
   const color = CATEGORY_COLOR[incident.category] ?? '#A6C2D4';
   const promoted = incident.donationStatus !== 'signal';
@@ -66,6 +67,7 @@ export default function VaquitaAside({
       if (error || !address) throw new Error(error?.message ?? 'Acceso denegado');
       setWallet(address);
       setBalance(await getBalance(address));
+      setCooldown(await getVoteCooldown(supabaseUrl, address));
       return address;
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo conectar la wallet');
@@ -86,12 +88,14 @@ export default function VaquitaAside({
         votes: result.votes,
         donationStatus: result.donationStatus,
       });
+      setCooldown(result.cooldownS);
     } catch (e: any) {
-      setError(
-        e instanceof VoteError
-          ? e.message
-          : (e?.message ?? 'No se pudo registrar el voto'),
-      );
+      if (e instanceof VoteError && e.retryAfter != null) {
+        // El cooldown es estado, no error — lo muestra el contador.
+        setCooldown(e.retryAfter);
+      } else {
+        setError(e?.message ?? 'No se pudo registrar el voto');
+      }
     } finally {
       setBusy(null);
     }
@@ -103,6 +107,13 @@ export default function VaquitaAside({
     const t = setTimeout(() => setError(''), 5000);
     return () => clearTimeout(t);
   }, [error]);
+
+  // Countdown del cooldown de voto — 1 tick por segundo.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(t);
+  }, [cooldown > 0]);
 
   const parsedAmount = Number(amount.replace(',', '.'));
   const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
@@ -211,11 +222,15 @@ export default function VaquitaAside({
           </div>
           <button
             onClick={vote}
-            disabled={busy != null}
+            disabled={busy != null || cooldown > 0}
             className="mt-2 w-full rounded border border-[var(--cyan-primary)] px-2 py-1.5 text-[11px] font-semibold text-[var(--cyan-primary)] transition hover:bg-[var(--cyan-primary)]/10 disabled:opacity-40"
           >
             {busy === 'vote' ? (
               <Loader2 size={11} className="mx-auto animate-spin" />
+            ) : cooldown > 0 ? (
+              `Próximo voto en ${Math.floor(cooldown / 60)}:${String(
+                cooldown % 60,
+              ).padStart(2, '0')}`
             ) : (
               'Votar para elevar a Vaquita Comunitaria'
             )}
