@@ -99,7 +99,7 @@ export async function fetchVaquitas(supabaseUrl: string): Promise<VaquitaInciden
     const rows = Array.isArray(body?.incidents) ? body.incidents : [];
     return rows
       .filter((r: any) => r.latitude != null && r.longitude != null)
-      .map((r: any) => ({ ...r, votes: 0 })) as VaquitaIncident[];
+      .map((r: any) => ({ ...r, votes: Number(r.votes ?? 0) })) as VaquitaIncident[];
   } catch {
     return [];
   }

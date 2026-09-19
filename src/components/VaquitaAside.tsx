@@ -19,12 +19,14 @@ import {
   VAQUITA_GOLD,
 } from '@/lib/vaquitas';
 import { donateToPool, getBalance } from '@/lib/donate';
+import { castVote, VoteError } from '@/lib/vote';
 
 interface VaquitaAsideProps {
   incident: VaquitaIncident;
   regionName: string | null;
+  supabaseUrl: string;
   voteThreshold: number;
-  onVote: (id: string) => void;
+  onVote: (id: string, result: { votes: number; donationStatus: string | null }) => void;
   onClose: () => void;
 }
 
@@ -38,6 +40,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function VaquitaAside({
   incident,
   regionName,
+  supabaseUrl,
   voteThreshold,
   onVote,
   onClose,
@@ -76,8 +79,19 @@ export default function VaquitaAside({
     const addr = wallet ?? (await connect());
     if (!addr) return;
     setBusy('vote');
+    setError('');
     try {
-      onVote(incident.id);
+      const result = await castVote(supabaseUrl, addr, incident.id);
+      onVote(incident.id, {
+        votes: result.votes,
+        donationStatus: result.donationStatus,
+      });
+    } catch (e: any) {
+      setError(
+        e instanceof VoteError
+          ? e.message
+          : (e?.message ?? 'No se pudo registrar el voto'),
+      );
     } finally {
       setBusy(null);
     }
@@ -207,8 +221,8 @@ export default function VaquitaAside({
             )}
           </button>
           <p className="mt-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
-            Demo: el voto es local y mock — en producción exige KYC o antigüedad
-            de wallet contra Sybil.
+            Tu wallet firma el voto (1 cada 5 min). En producción se exigirá
+            KYC o antigüedad de wallet contra Sybil.
           </p>
         </div>
 

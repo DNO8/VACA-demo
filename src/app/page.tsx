@@ -194,25 +194,40 @@ export default function Home() {
     setSelected(null);
   }, []);
 
-  // Voto comunitario (mock): acumula localmente; al umbral promueve a
-  // Vaquita Comunitaria. La barrera anti-Sybil real queda para el backend.
-  const handleVote = useCallback((id: string) => {
-    setIncidents((list) =>
-      list.map((i) => {
-        if (i.id !== id) return i;
-        const votes = i.votes + 1;
-        return {
-          ...i,
-          votes,
-          donationStatus:
-            votes >= COMMUNITY_VOTE_THRESHOLD ? 'community' : i.donationStatus,
-        };
-      }),
-    );
-    setSelectedIncident((cur) =>
-      cur && cur.id === id ? { ...cur, votes: cur.votes + 1 } : cur,
-    );
-  }, []);
+  // Voto comunitario real: el servidor ya verificó firma/cooldown y decidió
+  // la promoción — acá solo se refleja el resultado autoritativo.
+  const handleVote = useCallback(
+    (
+      id: string,
+      result: { votes: number; donationStatus: string | null },
+    ) => {
+      setIncidents((list) =>
+        list.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                votes: result.votes,
+                donationStatus:
+                  (result.donationStatus as VaquitaIncident['donationStatus']) ??
+                  i.donationStatus,
+              }
+            : i,
+        ),
+      );
+      setSelectedIncident((cur) =>
+        cur && cur.id === id
+          ? {
+              ...cur,
+              votes: result.votes,
+              donationStatus:
+                (result.donationStatus as VaquitaIncident['donationStatus']) ??
+                cur.donationStatus,
+            }
+          : cur,
+      );
+    },
+    [],
+  );
 
   // Deep-links (usados por los tests E2E): ?region=<id>.
   // El tour solo corre en una visita normal (sin parámetros de demo/tests).
@@ -458,6 +473,7 @@ export default function Home() {
                 )?.name ?? null
               : null
           }
+          supabaseUrl={SUPABASE_URL}
           voteThreshold={COMMUNITY_VOTE_THRESHOLD}
           onVote={handleVote}
           onClose={() => setSelectedIncident(null)}
