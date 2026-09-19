@@ -81,14 +81,21 @@ export default function VaquitaAside({
     }
   };
 
+  const parsedAmount = Number(amount.replace(',', '.'));
+  const amountValid = Number.isFinite(parsedAmount) && parsedAmount > 0;
+
   const donate = async () => {
+    if (!amountValid) {
+      setError('Monto inválido — usá un número positivo');
+      return;
+    }
     const addr = wallet ?? (await connect());
     if (!addr) return;
     setBusy('donate');
     setError('');
     setDonationTx(null);
     try {
-      const res = await donateToPool(addr, amount, incident.id);
+      const res = await donateToPool(addr, String(parsedAmount), incident.id);
       setDonationTx(res.explorerUrl);
     } catch (e: any) {
       setError(e?.message ?? 'Donación fallida');
@@ -199,22 +206,24 @@ export default function VaquitaAside({
             <>
               <div className="mt-2 flex gap-1.5">
                 <input
-                  type="number"
-                  min="1"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) =>
+                    setAmount(e.target.value.replace(/[^0-9.,]/g, ''))
+                  }
                   className="w-20 rounded border border-[var(--border-secondary)] bg-transparent px-2 py-1.5 text-xs text-[var(--text-primary)]"
                   aria-label="Monto XLM"
                 />
                 <button
                   onClick={donate}
-                  disabled={busy != null}
+                  disabled={busy != null || !amountValid}
                   className="flex-1 rounded border border-[var(--gold-primary)] px-2 py-1.5 text-[11px] font-semibold text-[var(--gold-primary)] transition hover:bg-[var(--gold-primary)]/10 disabled:opacity-40"
                 >
                   {busy === 'donate' ? (
                     <Loader2 size={11} className="mx-auto animate-spin" />
                   ) : (
-                    `Donar ${amount} XLM`
+                    `Donar ${amountValid ? parsedAmount : '—'} XLM`
                   )}
                 </button>
               </div>
