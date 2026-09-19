@@ -287,7 +287,11 @@ function VacaGlobe({
           (i) => i.id === f?.properties?.id,
         );
         if (incident) {
-          map.flyTo({ center: [e.lngLat.lng, e.lngLat.lat], zoom: 9, duration: 1200 });
+          map.flyTo({
+            center: [e.lngLat.lng, e.lngLat.lat],
+            zoom: 12,
+            duration: 1400,
+          });
           incidentHandler.current?.(incident);
         }
       };
