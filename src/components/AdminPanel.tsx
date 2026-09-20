@@ -31,22 +31,28 @@ export default function AdminPanel({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  // Tras promover: si el reportante tiene wallet, convierte las donaciones
-  // acumuladas en un claimable balance hacia su pubkey y lo registra.
+  // Tras promover (o al liberar una comunitaria existente): si el
+  // reportante tiene wallet, convierte las donaciones acumuladas del pool
+  // en un claimable balance hacia su pubkey y lo registra.
   const tryClaim = async (
     incident: VaquitaIncident,
     stellarPubkey: string | null,
+    context: 'promoted' | 'release',
   ) => {
     if (!stellarPubkey) {
-      setNotice('Promovida. El reportante no tiene wallet Stellar: sin claim.');
+      setNotice(
+        context === 'release'
+          ? 'No se puede liberar: la señal se creó sin wallet del reportante.'
+          : 'Promovida. El reportante no tiene wallet Stellar: sin claim.',
+      );
       return;
     }
     try {
       const claim = await createVaquitaClaim(stellarPubkey, incident.id);
       await recordClaim(supabaseUrl, session, incident.id, claim.txHash);
-      setNotice(`Ayuda preparada: ${claim.amount} XLM reclamables`);
+      setNotice(`Ayuda liberada: ${claim.amount} XLM reclamables`);
     } catch (e: any) {
-      setNotice(`Promovida; el claim falló: ${e?.message ?? 'error'}`);
+      setNotice(`El claim falló: ${e?.message ?? 'error'}`);
     }
   };
 
@@ -61,10 +67,32 @@ export default function AdminPanel({
         incident.id,
         status,
       );
-      if (status !== 'signal') await tryClaim(incident, stellarPubkey);
+      if (status !== 'signal') await tryClaim(incident, stellarPubkey, 'promoted');
       onChanged();
     } catch (e: any) {
       setError(e?.message ?? 'No se pudo actualizar');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Libera una Vaquita ya promovida (comunitaria o validada) sin cambiar
+  // su estado: solo crea el claimable balance con lo donado al pool.
+  const release = async (incident: VaquitaIncident) => {
+    setBusy(incident.id);
+    setError('');
+    setNotice('');
+    try {
+      const { stellarPubkey } = await setDonationStatus(
+        supabaseUrl,
+        session,
+        incident.id,
+        incident.donationStatus,
+      );
+      await tryClaim(incident, stellarPubkey, 'release');
+      onChanged();
+    } catch (e: any) {
+      setError(e?.message ?? 'No se pudo liberar');
     } finally {
       setBusy(null);
     }
@@ -149,10 +177,14 @@ export default function AdminPanel({
                 {incident.donationStatus !== 'signal' && !incident.claimable && (
                   <button
                     disabled={busy != null}
-                    onClick={() => act(incident, incident.donationStatus)}
-                    className="flex-1 rounded border border-[var(--border-secondary)] px-2 py-1.5 text-[11px] text-[var(--text-primary)] transition hover:bg-[var(--bg-primary)] disabled:opacity-40"
+                    onClick={() => release(incident)}
+                    className="flex-1 rounded border border-[var(--gold-primary)]/60 px-2 py-1.5 text-[11px] font-semibold text-[var(--gold-primary)] transition hover:bg-[var(--gold-primary)]/10 disabled:opacity-40"
                   >
-                    Preparar ayuda
+                    {busy === incident.id ? (
+                      <Loader2 size={11} className="mx-auto animate-spin" />
+                    ) : (
+                      'Liberar ayuda'
+                    )}
                   </button>
                 )}
                 {incident.donationStatus !== 'signal' && (

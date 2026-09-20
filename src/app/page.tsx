@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck } from 'lucide-react';
+import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck, HelpCircle } from 'lucide-react';
 import RegionPanel, { TxEntry } from '@/components/RegionPanel';
 import VaquitaAside from '@/components/VaquitaAside';
 import VaquitaCards from '@/components/VaquitaCards';
@@ -124,10 +124,10 @@ export default function Home() {
   const [setupMsg, setSetupMsg] = useState('');
   const [txLog, setTxLog] = useState<TxEntry[]>([]);
 
-  // Tour guiado (react-joyride): fase 'overview' (globo/HUD) y fase 'panel' (flujo de ayuda).
+  // Tour guiado (react-joyride): solo por intención del usuario — el botón
+  // Tour del HUD lo lanza. Fase 'overview' (globo/HUD); 'panel' queda para
+  // un tour contextual futuro del flujo de ayuda.
   const [tourPhase, setTourPhase] = useState<'idle' | 'overview' | 'panel'>('idle');
-  const [panelTourPending, setPanelTourPending] = useState(false);
-  const [panelTourShown, setPanelTourShown] = useState(false);
 
   // ── Vaquita: feed público de señales (real o mock) ──
   const [incidents, setIncidents] = useState<VaquitaIncident[]>([]);
@@ -239,25 +239,7 @@ export default function Home() {
       const id = Number(r);
       setSelected({ id, name: REGION_NAMES[id], center: [0, 0] });
     }
-    const skipTour = p.has('start') || p.has('region') || p.has('mock') || p.has('notour');
-    if (!skipTour) {
-      setTourPhase('overview');
-      setPanelTourPending(true);
-    }
   }, []);
-
-  // Lanza el tour del panel la primera vez que se abre una región con catástrofe.
-  useEffect(() => {
-    if (tourPhase !== 'idle' || !panelTourPending || panelTourShown) return;
-    if (selected && getDisaster(selected.id)) {
-      const t = setTimeout(() => {
-        setTourPhase('panel');
-        setPanelTourShown(true);
-        setPanelTourPending(false);
-      }, 450);
-      return () => clearTimeout(t);
-    }
-  }, [selected, tourPhase, panelTourPending, panelTourShown]);
 
   const handleTourFinish = useCallback(() => setTourPhase('idle'), []);
 
@@ -368,6 +350,15 @@ export default function Home() {
               <span className="hidden md:inline">
                 {viewMode === 'map' ? 'Panel' : 'Mapa'}
               </span>
+            </button>
+            <button
+              onClick={() => setTourPhase('overview')}
+              className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
+              title="Tour guiado"
+            >
+              <HelpCircle size={12} className="md:hidden" />
+              <HelpCircle size={13} className="hidden md:block" />
+              <span className="hidden md:inline">Tour</span>
             </button>
             <button
               onClick={handleReset}

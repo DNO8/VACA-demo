@@ -295,7 +295,10 @@ function VacaGlobe({
           incidentHandler.current?.(incident);
         }
       };
-      ['vaquita-orb', 'signal-lucero'].forEach((layer) => {
+      // El glow pulsante (16-24px) es lo que el usuario ve y clickea a
+      // nivel globo — el núcleo de 7px es casi imposible de acertar ahí.
+      // Mismo incidente, misma ruta de vuelo.
+      ['vaquita-orb', 'vaquita-glow', 'signal-lucero'].forEach((layer) => {
         map.on('click', layer, openIncident);
         map.on('mousemove', layer, () => {
           map.getCanvas().style.cursor = 'pointer';
