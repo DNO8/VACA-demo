@@ -94,6 +94,7 @@ node scripts/build-regions.mjs   # escribe public/chile-regions.geojson
 - **Verdad emergente / confianza progresiva (Diapositivas 2–4)** (gating del Aid Layer)
 - **Contrato Soroban de Proof of Aid** pendiente (hoy el Proof of Aid usa primitivas nativas).
 
+> [!IMPORTANT]
 > Las llaves del modo demo son **solo Testnet** (sin valor real). La arquitectura objetivo es
 > non-custodial (firma client-side del propio usuario); el modo demo firma por conveniencia.
 
@@ -109,11 +110,12 @@ La suite (`tests/e2e/flow.spec.ts`) cubre: landing + CTA, inicialización de Tes
 región sin catástrofe, el **flujo completo** (validar → multifirma → tokenizar → donar →
 liberar 2-de-2 + Proof of Aid) y el **gating** de pasos antes de validar el catastro.
 
-Para que el E2E sea rápido y determinista hay dos afordancias (también útiles como deep-links):
-
-- **`?mock=1`** — la capa Stellar responde con datos simulados (sin tocar la red Testnet).
-- **`?start=1`** y **`?region=<COD_REGI>`** — saltan el landing y abren el panel de una región
-  sin depender del click sobre el canvas del globo (ej. `/?start=1&region=5&mock=1`).
+> [!TIP]
+> Para que el E2E sea rápido y determinista hay dos afordancias (también útiles como deep-links):
+>
+> - **`?mock=1`** — la capa Stellar responde con datos simulados (sin tocar la red Testnet).
+> - **`?start=1`** y **`?region=<COD_REGI>`** — saltan el landing y abren el panel de una región
+>   sin depender del click sobre el canvas del globo (ej. `/?start=1&region=5&mock=1`).
 
 ## Modelo de negocio
 
