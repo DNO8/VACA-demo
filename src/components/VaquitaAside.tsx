@@ -14,12 +14,12 @@ import {
 import { requestAccess, isConnected } from '@stellar/freighter-api';
 import {
   VaquitaIncident,
-  CATEGORY_LABEL,
   CATEGORY_COLOR,
   VAQUITA_GOLD,
 } from '@/lib/vaquitas';
 import { donateToPool, getBalance } from '@/lib/donate';
 import { castVote, getVoteCooldown, VoteError } from '@/lib/vote';
+import { useLang, type StrKey } from '@/lib/i18n';
 
 interface VaquitaAsideProps {
   incident: VaquitaIncident;
@@ -30,10 +30,18 @@ interface VaquitaAsideProps {
   onClose: () => void;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  signal: 'Señal de coordinación',
-  community: 'Vaquita Comunitaria',
-  vaquita: 'Vaquita verificada',
+const STATUS_KEY: Record<string, StrKey> = {
+  signal: 'status_signal',
+  community: 'status_community',
+  vaquita: 'status_vaquita',
+};
+
+const CATEGORY_KEY: Record<string, StrKey> = {
+  sos: 'cat_sos',
+  medical: 'cat_medical',
+  person: 'cat_person',
+  hazard: 'cat_hazard',
+  coordination: 'cat_coordination',
 };
 
 /** Aside del incidente: detalle + voto comunitario + donación testnet. */
@@ -45,6 +53,7 @@ export default function VaquitaAside({
   onVote,
   onClose,
 }: VaquitaAsideProps) {
+  const { lang, t } = useLang();
   const [wallet, setWallet] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [busy, setBusy] = useState<'wallet' | 'vote' | 'donate' | null>(null);
@@ -63,15 +72,15 @@ export default function VaquitaAside({
     setError('');
     try {
       const conn = await isConnected();
-      if (!conn.isConnected) throw new Error('Freighter no instalado');
+      if (!conn.isConnected) throw new Error(t('err_freighter'));
       const { address, error } = await requestAccess();
-      if (error || !address) throw new Error(error?.message ?? 'Acceso denegado');
+      if (error || !address) throw new Error(error?.message ?? t('err_denied'));
       setWallet(address);
       setBalance(await getBalance(address));
       setCooldown(await getVoteCooldown(supabaseUrl, address));
       return address;
     } catch (e: any) {
-      setError(e?.message ?? 'No se pudo conectar la wallet');
+      setError(e?.message ?? t('err_wallet'));
       return null;
     } finally {
       setBusy(null);
@@ -96,7 +105,7 @@ export default function VaquitaAside({
         // El cooldown es estado, no error — lo muestra el contador.
         setCooldown(e.retryAfter);
       } else {
-        setError(e?.message ?? 'No se pudo registrar el voto');
+        setError(e?.message ?? t('err_vote'));
       }
     } finally {
       setBusy(null);
@@ -122,7 +131,7 @@ export default function VaquitaAside({
 
   const donate = async () => {
     if (!amountValid) {
-      setError('Monto inválido — usa un número positivo');
+      setError(t('err_amount'));
       return;
     }
     const addr = wallet ?? (await connect());
@@ -135,7 +144,7 @@ export default function VaquitaAside({
       setDonationTx(res.explorerUrl);
       setBalance(await getBalance(addr));
     } catch (e: any) {
-      setError(e?.message ?? 'Donación fallida');
+      setError(e?.message ?? t('err_donate'));
     } finally {
       setBusy(null);
     }
@@ -154,16 +163,20 @@ export default function VaquitaAside({
         />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-[var(--text-heading)]">
-            {CATEGORY_LABEL[incident.category] ?? incident.category}
+            {CATEGORY_KEY[incident.category]
+              ? t(CATEGORY_KEY[incident.category])
+              : incident.category}
           </div>
           <div className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
-            {STATUS_LABEL[incident.donationStatus] ?? incident.donationStatus}
+            {STATUS_KEY[incident.donationStatus]
+              ? t(STATUS_KEY[incident.donationStatus])
+              : incident.donationStatus}
           </div>
         </div>
         <button
           onClick={onClose}
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          aria-label="Cerrar"
+          aria-label={t('close')}
         >
           <X size={16} />
         </button>
@@ -174,19 +187,21 @@ export default function VaquitaAside({
         <div className="space-y-1.5 text-xs text-[var(--text-secondary)]">
           <div className="flex items-center gap-1.5">
             <MapPin size={12} className="text-[var(--text-muted)]" />
-            {regionName ?? 'Ubicación aproximada'} · coordenadas fuzzeadas
+            {regionName ?? t('location_approx')} · {t('coords_fuzzed')}
           </div>
           {incident.peopleCount != null && (
             <div className="flex items-center gap-1.5">
               <Users size={12} className="text-[var(--text-muted)]" />
-              {incident.peopleCount} personas reportadas
+              {t('people_reported', { n: incident.peopleCount })}
             </div>
           )}
           <div className="text-[10px] text-[var(--text-muted)]">
-            Señal {incident.id.slice(0, 8)}… ·{' '}
+            {t('signal_id', { id: incident.id.slice(0, 8) })} ·{' '}
             {incident.createdAt
-              ? new Date(incident.createdAt).toLocaleString('es-CL')
-              : 'sin fecha'}
+              ? new Date(incident.createdAt).toLocaleString(
+                  lang === 'en' ? 'en-US' : 'es-CL',
+                )
+              : t('no_date')}
           </div>
         </div>
 
@@ -203,11 +218,11 @@ export default function VaquitaAside({
           )}
           {wallet
             ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}`
-            : 'Conectar wallet (Freighter)'}
+            : t('connect_wallet')}
         </button>
         {wallet && balance != null && (
           <div className="-mt-1 text-center text-[11px] text-[var(--text-muted)]">
-            Balance: <span className="font-semibold text-[var(--text-primary)]">{balance} XLM</span>
+            {t('balance')} <span className="font-semibold text-[var(--text-primary)]">{balance} XLM</span>
             <span className="text-[10px]"> · testnet</span>
           </div>
         )}
@@ -216,7 +231,7 @@ export default function VaquitaAside({
         <div className="rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-secondary)] p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-[var(--text-heading)]">
-              Voto comunitario
+              {t('community_vote')}
             </span>
             <span className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
               <Vote size={11} /> {incident.votes}/{voteThreshold}
@@ -230,16 +245,17 @@ export default function VaquitaAside({
             {busy === 'vote' ? (
               <Loader2 size={11} className="mx-auto animate-spin" />
             ) : cooldown > 0 ? (
-              `Próximo voto en ${Math.floor(cooldown / 60)}:${String(
-                cooldown % 60,
-              ).padStart(2, '0')}`
+              t('vote_cooldown', {
+                t: `${Math.floor(cooldown / 60)}:${String(
+                  cooldown % 60,
+                ).padStart(2, '0')}`,
+              })
             ) : (
-              'Votar para elevar a Vaquita Comunitaria'
+              t('vote_cta')
             )}
           </button>
           <p className="mt-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
-            El voto es una transacción testnet firmada por tu wallet (1 cada 5
-            min). En producción se exigirá KYC o antigüedad contra Sybil.
+            {t('vote_note')}
           </p>
           {voteTx && (
             <a
@@ -248,7 +264,7 @@ export default function VaquitaAside({
               rel="noreferrer"
               className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--cyan-primary)] hover:underline"
             >
-              <ExternalLink size={11} /> Ver tu voto en la cadena
+              <ExternalLink size={11} /> {t('vote_view_tx')}
             </a>
           )}
         </div>
@@ -257,7 +273,7 @@ export default function VaquitaAside({
         <div className="rounded-lg border border-[var(--border-secondary)] bg-[var(--bg-secondary)] p-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-heading)]">
             <HeartHandshake size={13} className="text-[var(--gold-primary)]" />
-            Donación
+            {t('donation')}
           </div>
           {promoted ? (
             <>
@@ -270,7 +286,7 @@ export default function VaquitaAside({
                     setAmount(e.target.value.replace(/[^0-9.,]/g, ''))
                   }
                   className="w-20 rounded border border-[var(--border-secondary)] bg-transparent px-2 py-1.5 text-xs text-[var(--text-primary)]"
-                  aria-label="Monto XLM"
+                  aria-label={t('amount_aria')}
                 />
                 <button
                   onClick={donate}
@@ -279,14 +295,15 @@ export default function VaquitaAside({
                 >
                   {busy === 'donate' ? (
                     <Loader2 size={11} className="mx-auto animate-spin" />
+                  ) : amountValid ? (
+                    t('donate_cta', { n: parsedAmount })
                   ) : (
-                    `Donar ${amountValid ? parsedAmount : '—'} XLM`
+                    t('donate_cta_empty')
                   )}
                 </button>
               </div>
               <p className="mt-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
-                Testnet real: el pago XLM va al pool Vaquita con memo del
-                incidente y lo firma tu Freighter (debe estar en modo Testnet).
+                {t('donate_note')}
               </p>
               {donationTx && (
                 <a
@@ -295,14 +312,13 @@ export default function VaquitaAside({
                   rel="noreferrer"
                   className="mt-1.5 flex items-center gap-1 text-[11px] text-[var(--cyan-primary)] hover:underline"
                 >
-                  <ExternalLink size={11} /> Ver transacción en Stellar Expert
+                  <ExternalLink size={11} /> {t('donate_view_tx')}
                 </a>
               )}
             </>
           ) : (
             <p className="mt-2 text-[10px] leading-snug text-[var(--text-muted)]">
-              Las donaciones se habilitan cuando la señal es promovida a
-              Vaquita (votos comunitarios o verificación VACA).
+              {t('donate_disabled')}
             </p>
           )}
         </div>
@@ -311,8 +327,7 @@ export default function VaquitaAside({
 
         {verified && (
           <p className="text-[10px] leading-snug text-[var(--text-muted)]">
-            Verificada por curaduría VACA — la verificación certifica la señal,
-            no garantiza respuesta institucional.
+            {t('verified_note')}
           </p>
         )}
       </div>

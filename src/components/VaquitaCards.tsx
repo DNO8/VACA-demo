@@ -6,12 +6,12 @@ import {
   VaquitaIncident,
   VaquitaFilter,
   DonationStatus,
-  CATEGORY_LABEL,
   CATEGORY_COLOR,
   VAQUITA_GOLD,
   regionOfPoint,
 } from '@/lib/vaquitas';
 import { REGION_NAMES } from '@/lib/chile';
+import { useLang, type StrKey } from '@/lib/i18n';
 
 interface VaquitaCardsProps {
   incidents: VaquitaIncident[];
@@ -22,12 +22,20 @@ interface VaquitaCardsProps {
   onClose: () => void;
 }
 
-const STATUS_OPTIONS: { value: DonationStatus | null; label: string }[] = [
-  { value: null, label: 'Todas' },
-  { value: 'vaquita', label: 'Vaquitas' },
-  { value: 'community', label: 'Comunitarias' },
-  { value: 'signal', label: 'Señales' },
+const STATUS_OPTIONS: { value: DonationStatus | null; labelKey: StrKey }[] = [
+  { value: null, labelKey: 'filter_all' },
+  { value: 'vaquita', labelKey: 'filter_vaquitas' },
+  { value: 'community', labelKey: 'filter_community' },
+  { value: 'signal', labelKey: 'filter_signals' },
 ];
+
+const CATEGORY_KEY: Record<string, StrKey> = {
+  sos: 'cat_sos',
+  medical: 'cat_medical',
+  person: 'cat_person',
+  hazard: 'cat_hazard',
+  coordination: 'cat_coordination',
+};
 
 const ORDER: Record<DonationStatus, number> = {
   vaquita: 0,
@@ -44,6 +52,7 @@ export default function VaquitaCards({
   onSelect,
   onClose,
 }: VaquitaCardsProps) {
+  const { t } = useLang();
   const sorted = useMemo(
     () =>
       [...incidents].sort(
@@ -58,12 +67,12 @@ export default function VaquitaCards({
     <div className="vaca-soft-blur absolute inset-y-0 right-0 z-30 flex w-full flex-col border-l border-[var(--border-primary)] bg-[var(--bg-panel)] md:w-1/4 md:min-w-[340px] md:max-w-[460px]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border-secondary)] p-3">
         <h2 className="text-sm font-bold text-[var(--text-heading)]">
-          Señales y Vaquitas
+          {t('cards_title')}
         </h2>
         <button
           onClick={onClose}
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          aria-label="Volver al mapa"
+          aria-label={t('cards_back_map')}
         >
           <X size={16} />
         </button>
@@ -80,7 +89,7 @@ export default function VaquitaCards({
           }
           className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1.5 text-xs text-[var(--text-primary)]"
         >
-          <option value="">Chile — todas las regiones</option>
+          <option value="">{t('filter_all_regions')}</option>
           {Object.entries(REGION_NAMES)
             .sort((a, b) => a[1].localeCompare(b[1]))
             .map(([id, name]) => (
@@ -92,7 +101,7 @@ export default function VaquitaCards({
         <div className="flex flex-wrap gap-1.5">
           {STATUS_OPTIONS.map((opt) => (
             <button
-              key={opt.label}
+              key={opt.labelKey}
               onClick={() =>
                 onFilterChange({ ...filter, donationStatus: opt.value })
               }
@@ -102,7 +111,7 @@ export default function VaquitaCards({
                   : 'border-[var(--border-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
               }`}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </button>
           ))}
         </div>
@@ -111,7 +120,7 @@ export default function VaquitaCards({
       <div className="flex-1 space-y-2 overflow-y-auto p-3">
         {sorted.length === 0 && (
           <p className="p-4 text-center text-xs text-[var(--text-muted)]">
-            Sin señales en este filtro.
+            {t('cards_empty')}
           </p>
         )}
         {sorted.map((incident) => {
@@ -132,7 +141,9 @@ export default function VaquitaCards({
                   style={{ background: color, boxShadow: `0 0 8px ${color}` }}
                 />
                 <span className="text-xs font-semibold text-[var(--text-primary)]">
-                  {CATEGORY_LABEL[incident.category] ?? incident.category}
+                  {CATEGORY_KEY[incident.category]
+                    ? t(CATEGORY_KEY[incident.category])
+                    : incident.category}
                 </span>
                 {isVaquita && (
                   <span
@@ -152,11 +163,11 @@ export default function VaquitaCards({
                 <MapPin size={10} />
                 {(incident.latitude != null && incident.longitude != null && geojson
                   ? regionOfPoint(geojson, incident.longitude, incident.latitude)?.name
-                  : null) ?? 'Ubicación aproximada'}{' '}
+                  : null) ?? t('location_approx')}{' '}
                 ·{' '}
                 {incident.peopleCount != null
-                  ? `${incident.peopleCount} personas`
-                  : 'personas no reportadas'}
+                  ? t('people_short', { n: incident.peopleCount })
+                  : t('people_missing')}
               </div>
             </button>
           );

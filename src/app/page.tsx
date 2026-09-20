@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Globe2, RotateCcw, ExternalLink, Radio, Activity, LayoutGrid, ShieldCheck, HelpCircle, Languages } from 'lucide-react';
 import RegionPanel, { TxEntry } from '@/components/RegionPanel';
 import VaquitaAside from '@/components/VaquitaAside';
 import VaquitaCards from '@/components/VaquitaCards';
@@ -19,6 +19,7 @@ import {
   regionOfPoint,
   MOCK_INCIDENTS,
 } from '@/lib/vaquitas';
+import { useLang, type StrKey } from '@/lib/i18n';
 
 const VacaGlobe = dynamic(() => import('@/components/VacaGlobe'), { ssr: false });
 const Tour = dynamic(() => import('@/components/Tour'), { ssr: false });
@@ -32,34 +33,30 @@ interface SelectedRegion {
   center: [number, number];
 }
 
-// ── Pasos del tour guiado (react-joyride) ──
-const OVERVIEW_STEPS: Step[] = [
+// ── Pasos del tour guiado (react-joyride) — traducidos con t() ──
+const overviewSteps = (t: (k: StrKey) => string): Step[] => [
   {
     target: '[data-tour="brand"]',
-    title: 'Bienvenido a V.A.C.A.',
-    content:
-      'Infraestructura de resiliencia post-catástrofe sobre Stellar. Te guiamos por el flujo completo del MVP, paso a paso.',
+    title: t('tour1_title'),
+    content: t('tour1_body'),
     placement: 'bottom-start',
   },
   {
     target: '[data-tour="status"]',
-    title: 'Stellar Testnet en vivo',
-    content:
-      'Conectamos a la red de prueba real de Stellar. Cada operación de la demo es una transacción verificable en el explorador.',
+    title: t('tour2_title'),
+    content: t('tour2_body'),
     placement: 'bottom-end',
   },
   {
     target: '[data-tour="legend"]',
-    title: 'Focos de catástrofe',
-    content:
-      'El globo enfoca Chile. Cada foco pulsante es una región afectada; el color indica la severidad (crítico, alto o medio).',
+    title: t('tour3_title'),
+    content: t('tour3_body'),
     placement: 'top-start',
   },
   {
     target: 'body',
-    title: 'Empieza por una región',
-    content:
-      'Haz clic en una región con foco para abrir su panel de ayuda. Allí te explicaremos el flujo completo de la donación.',
+    title: t('tour4_title'),
+    content: t('tour4_body'),
     placement: 'center',
   },
 ];
@@ -117,6 +114,7 @@ const PANEL_STEPS: Step[] = [
 ];
 
 export default function Home() {
+  const { lang, setLang, t } = useLang();
   // La simulación arranca directamente (sin modal): el globo vuela a Chile.
   const [started] = useState(true);
   const [selected, setSelected] = useState<SelectedRegion | null>(null);
@@ -173,9 +171,9 @@ export default function Home() {
       setAdminSession(session);
       setAdminOpen(true);
     } catch (e: any) {
-      setAdminError(e?.message ?? 'No se pudo conectar la wallet');
+      setAdminError(e?.message ?? t('admin_connect_error'));
     }
-  }, []);
+  }, [t]);
 
   // El toast de error se auto-descarta a los 5 s.
   useEffect(() => {
@@ -262,7 +260,7 @@ export default function Home() {
           setSetupMsg('');
         }
       } catch (e: any) {
-        if (!cancelled) setSetupMsg('Error inicializando Testnet: ' + (e?.message ?? ''));
+        if (!cancelled) setSetupMsg(t('status_setup_error') + (e?.message ?? ''));
       }
     })();
     return () => {
@@ -316,7 +314,7 @@ export default function Home() {
               V.A.C.A.
             </div>
             <div className="hidden text-[10px] uppercase tracking-widest text-[var(--text-muted)] sm:block">
-              Resiliencia humanitaria · Stellar
+              {t('tagline')}
             </div>
           </div>
         </div>
@@ -325,18 +323,29 @@ export default function Home() {
           <div data-tour="status" className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
             <StatusPill accounts={accounts} setupMsg={setupMsg} />
             <button
+              onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
+              className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
+              title={lang === 'es' ? 'Switch to English' : 'Cambiar a español'}
+            >
+              <Languages size={12} className="md:hidden" />
+              <Languages size={13} className="hidden md:block" />
+              <span className="hidden md:inline">
+                {lang === 'es' ? 'EN' : 'ES'}
+              </span>
+            </button>
+            <button
               onClick={
                 adminSession
                   ? () => setAdminOpen((o) => !o)
                   : handleAdminConnect
               }
               className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
-              title={adminError || 'Curaduría (wallet admin)'}
+              title={adminError || t('admin_title')}
             >
               <ShieldCheck size={12} className="md:hidden" />
               <ShieldCheck size={13} className="hidden md:block" />
               <span className="hidden md:inline">
-                {adminSession ? 'Curaduría' : 'Admin'}
+                {adminSession ? t('admin_curation') : t('admin_short')}
               </span>
             </button>
             <button
@@ -348,17 +357,17 @@ export default function Home() {
               <LayoutGrid size={12} className="md:hidden" />
               <LayoutGrid size={13} className="hidden md:block" />
               <span className="hidden md:inline">
-                {viewMode === 'map' ? 'Panel' : 'Mapa'}
+                {viewMode === 'map' ? t('view_panel') : t('view_map')}
               </span>
             </button>
             <button
               onClick={() => setTourPhase('overview')}
               className="vaca-soft-blur flex items-center gap-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)] md:px-3 md:py-2 md:text-xs"
-              title="Tour guiado"
+              title={t('tour_title')}
             >
               <HelpCircle size={12} className="md:hidden" />
               <HelpCircle size={13} className="hidden md:block" />
-              <span className="hidden md:inline">Tour</span>
+              <span className="hidden md:inline">{t('tour')}</span>
             </button>
             <button
               onClick={handleReset}
@@ -366,7 +375,7 @@ export default function Home() {
             >
               <RotateCcw size={12} className="md:hidden" />
               <RotateCcw size={13} className="hidden md:block" />
-              <span className="hidden md:inline">Reiniciar</span>
+              <span className="hidden md:inline">{t('reset')}</span>
             </button>
           </div>
         )}
@@ -376,7 +385,7 @@ export default function Home() {
       {started && !selected && (
         <div data-tour="legend" className="pointer-events-none absolute bottom-3 left-3 z-20 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] p-2.5 backdrop-blur md:bottom-4 md:left-4 md:p-3">
           <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--text-muted)] md:mb-2">
-            Señales
+            {t('legend_title')}
           </div>
           <div className="space-y-1 md:space-y-1.5">
             <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
@@ -384,7 +393,7 @@ export default function Home() {
                 className="h-2.5 w-2.5 rounded-full md:h-3 md:w-3"
                 style={{ background: '#F5C542', boxShadow: '0 0 10px #F5C542' }}
               />
-              Vaquita — puedes donar
+              {t('legend_vaquita')}
             </div>
             <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] md:gap-2 md:text-[11px]">
               <span className="flex gap-0.5">
@@ -396,11 +405,11 @@ export default function Home() {
                   />
                 ))}
               </span>
-              Señal — vota para promoverla
+              {t('legend_signal')}
             </div>
           </div>
           <div className="mt-1.5 hidden border-t border-[var(--border-secondary)] pt-1.5 text-[10px] text-[var(--text-muted)] md:block">
-            Haz clic en un punto para ver el detalle
+            {t('legend_hint')}
           </div>
         </div>
       )}
@@ -409,7 +418,7 @@ export default function Home() {
       {started && txLog.length > 0 && (
         <div className="pointer-events-auto absolute bottom-24 right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] p-2.5 backdrop-blur md:bottom-4 md:right-12 md:w-72 md:p-3">
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-[var(--text-muted)] md:mb-2">
-            <Activity size={12} className="text-[var(--cyan-primary)]" /> Transacciones
+            <Activity size={12} className="text-[var(--cyan-primary)]" /> {t('tx_log')}
           </div>
           <div className="max-h-40 space-y-1 overflow-y-auto md:max-h-48 md:space-y-1.5">
             {txLog.map((t, i) => (
@@ -508,7 +517,7 @@ export default function Home() {
       {/* Tour guiado paso a paso */}
       {tourPhase !== 'idle' && (
         <Tour
-          steps={tourPhase === 'overview' ? OVERVIEW_STEPS : PANEL_STEPS}
+          steps={tourPhase === 'overview' ? overviewSteps(t) : PANEL_STEPS}
           run
           onFinish={handleTourFinish}
         />
@@ -518,6 +527,7 @@ export default function Home() {
 }
 
 function StatusPill({ accounts, setupMsg }: { accounts: DemoAccounts | null; setupMsg: string }) {
+  const { t } = useLang();
   const ok = !!accounts;
   return (
     <div className="vaca-soft-blur flex items-center gap-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-panel)] px-3 py-2 text-xs">
@@ -526,7 +536,7 @@ function StatusPill({ accounts, setupMsg }: { accounts: DemoAccounts | null; set
         className={ok ? 'text-[var(--alert-green)]' : 'animate-pulse text-[var(--gold-primary)]'}
       />
       <span className="text-[var(--text-secondary)]">
-        {ok ? 'Testnet lista' : setupMsg || 'Conectando Testnet…'}
+        {ok ? t('status_ready') : setupMsg || t('status_wait')}
       </span>
     </div>
   );

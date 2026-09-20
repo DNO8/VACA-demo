@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { X, ShieldCheck, Loader2, Vote } from 'lucide-react';
-import { VaquitaIncident, CATEGORY_LABEL, CATEGORY_COLOR } from '@/lib/vaquitas';
+import { VaquitaIncident, CATEGORY_COLOR } from '@/lib/vaquitas';
 import { AdminSession, setDonationStatus, recordClaim } from '@/lib/admin';
 import { createVaquitaClaim } from '@/lib/claim';
+import { useLang, type StrKey } from '@/lib/i18n';
 
 interface AdminPanelProps {
   session: AdminSession;
@@ -14,9 +15,23 @@ interface AdminPanelProps {
   onClose: () => void;
 }
 
-const NEXT_STATUS: Record<string, { to: 'community' | 'vaquita'; label: string }> = {
-  signal: { to: 'community', label: 'A Comunitaria' },
-  community: { to: 'vaquita', label: 'A Vaquita verificada' },
+const NEXT_STATUS: Record<string, { to: 'community' | 'vaquita'; labelKey: StrKey }> = {
+  signal: { to: 'community', labelKey: 'promote_community' },
+  community: { to: 'vaquita', labelKey: 'promote_vaquita' },
+};
+
+const STATUS_SHORT_KEY: Record<string, StrKey> = {
+  signal: 'status_short_signal',
+  community: 'status_short_community',
+  vaquita: 'status_short_vaquita',
+};
+
+const CATEGORY_KEY: Record<string, StrKey> = {
+  sos: 'cat_sos',
+  medical: 'cat_medical',
+  person: 'cat_person',
+  hazard: 'cat_hazard',
+  coordination: 'cat_coordination',
 };
 
 /** Panel de curaduria: solo visible tras conectar una wallet admin. */
@@ -27,6 +42,7 @@ export default function AdminPanel({
   onChanged,
   onClose,
 }: AdminPanelProps) {
+  const { t } = useLang();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -42,17 +58,17 @@ export default function AdminPanel({
     if (!stellarPubkey) {
       setNotice(
         context === 'release'
-          ? 'No se puede liberar: la señal se creó sin wallet del reportante.'
-          : 'Promovida. El reportante no tiene wallet Stellar: sin claim.',
+          ? t('release_no_wallet')
+          : t('promoted_no_wallet'),
       );
       return;
     }
     try {
       const claim = await createVaquitaClaim(stellarPubkey, incident.id);
       await recordClaim(supabaseUrl, session, incident.id, claim.txHash);
-      setNotice(`Ayuda liberada: ${claim.amount} XLM reclamables`);
+      setNotice(t('released_ok', { n: claim.amount }));
     } catch (e: any) {
-      setNotice(`El claim falló: ${e?.message ?? 'error'}`);
+      setNotice(t('claim_failed', { e: e?.message ?? 'error' }));
     }
   };
 
@@ -70,7 +86,7 @@ export default function AdminPanel({
       if (status !== 'signal') await tryClaim(incident, stellarPubkey, 'promoted');
       onChanged();
     } catch (e: any) {
-      setError(e?.message ?? 'No se pudo actualizar');
+      setError(e?.message ?? t('update_failed'));
     } finally {
       setBusy(null);
     }
@@ -92,7 +108,7 @@ export default function AdminPanel({
       await tryClaim(incident, stellarPubkey, 'release');
       onChanged();
     } catch (e: any) {
-      setError(e?.message ?? 'No se pudo liberar');
+      setError(e?.message ?? t('release_failed'));
     } finally {
       setBusy(null);
     }
@@ -104,7 +120,7 @@ export default function AdminPanel({
         <ShieldCheck size={15} className="text-[var(--gold-primary)]" />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-bold text-[var(--text-heading)]">
-            Curaduría Vaquita
+            {t('admin_panel_title')}
           </div>
           <div className="truncate text-[10px] text-[var(--text-muted)]">
             {session.publicKey.slice(0, 8)}…{session.publicKey.slice(-4)} ·{' '}
@@ -114,7 +130,7 @@ export default function AdminPanel({
         <button
           onClick={onClose}
           className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-          aria-label="Cerrar panel admin"
+          aria-label={t('admin_close')}
         >
           <X size={16} />
         </button>
@@ -146,10 +162,14 @@ export default function AdminPanel({
                   style={{ background: color }}
                 />
                 <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--text-primary)]">
-                  {CATEGORY_LABEL[incident.category] ?? incident.category}
+                  {CATEGORY_KEY[incident.category]
+                    ? t(CATEGORY_KEY[incident.category])
+                    : incident.category}
                 </span>
                 <span className="text-[10px] uppercase text-[var(--text-muted)]">
-                  {incident.donationStatus}
+                  {STATUS_SHORT_KEY[incident.donationStatus]
+                    ? t(STATUS_SHORT_KEY[incident.donationStatus])
+                    : incident.donationStatus}
                 </span>
               </div>
               <div className="mt-1 flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
@@ -170,7 +190,7 @@ export default function AdminPanel({
                     {busy === incident.id ? (
                       <Loader2 size={11} className="mx-auto animate-spin" />
                     ) : (
-                      next.label
+                      t(next.labelKey)
                     )}
                   </button>
                 )}
@@ -183,7 +203,7 @@ export default function AdminPanel({
                     {busy === incident.id ? (
                       <Loader2 size={11} className="mx-auto animate-spin" />
                     ) : (
-                      'Liberar ayuda'
+                      t('release_aid')
                     )}
                   </button>
                 )}
@@ -193,7 +213,7 @@ export default function AdminPanel({
                     onClick={() => act(incident, 'signal')}
                     className="rounded border border-[var(--border-secondary)] px-2 py-1.5 text-[11px] text-[var(--text-muted)] transition hover:text-[var(--text-primary)] disabled:opacity-40"
                   >
-                    Bajar a señal
+                    {t('demote_signal')}
                   </button>
                 )}
               </div>

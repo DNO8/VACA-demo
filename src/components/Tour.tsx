@@ -1,6 +1,7 @@
 'use client';
 
 import { Joyride, EVENTS, type EventData, type Options, type Step, type Styles } from 'react-joyride';
+import { useLang } from '@/lib/i18n';
 
 export type { Step };
 
@@ -74,14 +75,24 @@ const styles: Partial<Styles> = {
   },
 };
 
-const locale = {
-  back: 'Atrás',
-  close: 'Cerrar',
-  last: 'Entendido',
-  next: 'Siguiente',
-  nextWithProgress: 'Siguiente ({current}/{total})',
-  skip: 'Saltar tour',
-};
+const LOCALES = {
+  es: {
+    back: 'Atrás',
+    close: 'Cerrar',
+    last: 'Entendido',
+    next: 'Siguiente',
+    nextWithProgress: 'Siguiente ({current}/{total})',
+    skip: 'Saltar tour',
+  },
+  en: {
+    back: 'Back',
+    close: 'Close',
+    last: 'Got it',
+    next: 'Next',
+    nextWithProgress: 'Next ({current}/{total})',
+    skip: 'Skip tour',
+  },
+} as const;
 
 interface TourProps {
   steps: Step[];
@@ -90,6 +101,7 @@ interface TourProps {
 }
 
 export default function Tour({ steps, run, onFinish }: TourProps) {
+  const { lang } = useLang();
   const handleEvent = (data: EventData) => {
     if (data.type === EVENTS.TOUR_END) {
       onFinish();
@@ -105,7 +117,7 @@ export default function Tour({ steps, run, onFinish }: TourProps) {
       onEvent={handleEvent}
       options={options}
       styles={styles}
-      locale={locale}
+      locale={LOCALES[lang]}
       floaterProps={floaterProps}
     />
   );
