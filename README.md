@@ -32,12 +32,22 @@ El sistema se organiza en cuatro capas:
 
 Este repositorio contiene el MVP web demostrable para el Instaward de Stellar. El demo ejecuta el riel completo de ayuda — **catastro → tokenización → donación → reclamo → Proof of Aid** — todo verificable en Testnet, sobre un **globo terráqueo interactivo** enfocado en las regiones de Chile.
 
+Novedades sobre la primera versión:
+
+- **Feed en vivo de señales**: el mapa consume el Edge Function `vaquita-feed` con señales reales emitidas desde la app móvil — coordenadas ya difuminadas (~1.1 km) y ciclo `signal → community → vaquita`. Sin backend usa `?mock=1`.
+- **Voto comunitario on-chain**: cada voto es una transacción `manageData` (`vq-vote: <incidentId>`) firmada con Freighter en Testnet; el backend verifica el hash en Horizon, aplica cooldown y auto-promueve al umbral.
+- **Bilingüe ES/EN**: `LangProvider` con toggle, persistencia en `localStorage` y autodetección de `navigator.language`.
+- **Tour guiado**: recorrido `react-joyride` disparado por el usuario desde el HUD, con clicks sobre la capa glow.
+- **Panel de vaquitas**: tarjetas de señales en el aside; al seleccionar, el globo vuela al punto difuminado del incidente.
+
 ## Stack
 
 - **Next.js 15** (App Router) + **React 19** + **TypeScript**
 - **maplibre-gl 5** (proyección globo) + estilo CARTO dark-matter
 - **TailwindCSS 4**
-- **@stellar/stellar-sdk** (Horizon Testnet, friendbot, Claimable Balances)
+- **@stellar/stellar-sdk** (Horizon Testnet, friendbot, Claimable Balances) + **@stellar/freighter-api** (firma de votos)
+- **react-joyride** (tour guiado) + **lucide-react** (iconos) + **@vercel/analytics**
+- Backend: Edge Functions Supabase (`vaquita-feed`, `vaquita-vote`)
 - Gestor de paquetes: **pnpm**
 
 ## Cómo correr
@@ -60,7 +70,11 @@ node scripts/build-regions.mjs   # escribe public/chile-regions.geojson
    y las **regiones** como polígonos clicables.
 3. Al iniciar, la app crea/fondea **cuentas Testnet efímeras** (friendbot: Plataforma,
    Donante, Beneficiario y Municipalidad) y emite USDC de demo.
-4. Click en una región afectada → **panel lateral** con el riel completo del pitch:
+4. El panel lateral muestra **señales reales** del feed (`vaquita-feed`) con sus tarjetas:
+   la comunidad **vota on-chain** cada señal (`manageData` firmada con Freighter;
+   el backend verifica el hash en Horizon con cooldown y dedup) y al llegar al
+   umbral la señal se promueve (`signal → community → vaquita`).
+5. Click en una región afectada → **panel lateral** con el riel completo del pitch:
    - **1. Catastro · Verdad emergente** → valida los reportes comunitarios (confianza →
      100%) y **activa la capa de ayuda** (gating).
    - **2. Wallet multifirma del evento** → crea una cuenta **2-de-2** (Plataforma +
@@ -69,13 +83,14 @@ node scripts/build-regions.mjs   # escribe public/chile-regions.geojson
    - **4. Donar USDC** → aporta al **pool multifirma** del evento.
    - **5. Liberar + Proof of Aid** → liberación con **doble firma** → **Claimable Balance** →
      el beneficiario reclama (prueba de entrega).
-5. Cada transacción aparece en el panel inferior con enlace a **Stellar Expert** (Testnet).
+6. Cada transacción aparece en el panel inferior con enlace a **Stellar Expert** (Testnet).
 
 ### Cobertura de primitivas Stellar (Pitch, Diapositiva 5)
 
 - **Claimable Balances (USDC)** 
 - **Tokenización de insumos (`ITEM-*`)** 
 - **Cuentas multifirma 2-de-2 por evento** 
+- **Ballots on-chain (`manageData`)** para validación comunitaria de señales
 - **Verdad emergente / confianza progresiva (Diapositivas 2–4)** (gating del Aid Layer)
 - **Contrato Soroban de Proof of Aid** pendiente (hoy el Proof of Aid usa primitivas nativas).
 
@@ -121,6 +136,13 @@ VACA opera bajo una **sostenibilidad híbrida**:
 - `src/app/page.tsx` — orquestador (landing, globo, panel, log de transacciones).
 - `src/components/VacaGlobe.tsx` — globo maplibre + regiones + focos.
 - `src/components/RegionPanel.tsx` — panel de tokenizar/donar/reclamar.
+- `src/components/VaquitaAside.tsx` + `VaquitaCards.tsx` — feed de señales y votación.
+- `src/components/Tour.tsx` — tour guiado (react-joyride).
+- `src/components/AdminPanel.tsx` — consola de administración del demo.
 - `src/lib/stellar.ts` — capa Stellar (cuentas demo, tokenizar, donar, reclamar).
+- `src/lib/vote.ts` — voto comunitario on-chain (`manageData` + verificación Horizon).
+- `src/lib/vaquitas.ts` — feed público de señales vía `vaquita-feed`.
+- `src/lib/donate.ts` / `claim.ts` — donación y reclamo (claimable balances).
+- `src/lib/i18n.tsx` — diccionario ES/EN + `LangProvider`.
 - `src/lib/chile.ts` — datos simulados de catástrofes y necesidades por región.
 - `public/chile-regions.geojson` — límites de las regiones (fuente: jlhonora/geo).
