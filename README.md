@@ -4,6 +4,13 @@ Infraestructura cívica descentralizada para transformar la solidaridad ciudadan
 
 > **La idea central:** cuando un desastre colapsa la información y el Estado tarda días en llegar, VACA permite que la comunidad genere el primer catastro, que los donantes envíen ayuda trazable y que los damnificados la reclamen directamente — sin que la fundación custodie el dinero.
 
+![VACA web — globo terráqueo con focos de catástrofe](screenshots/responsive-desktop.png)
+
+## Repos relacionados
+
+- [`VACA`](https://github.com/DNO8/VACA) — app móvil Flutter offline-first (la que emite las señales que este mapa muestra).
+- [`VACA-prototipo-visual`](https://github.com/DNO8/VACA-prototipo-visual) — prototipo visual de referencia.
+
 ## ¿Qué problema resolvemos?
 
 - **El abismo del "Día 0":** la Ficha FIBE tarda entre 3 y 14 días en ejecutarse masivamente; mientras tanto, no hay datos confiables sobre quién necesita qué.
@@ -57,13 +64,19 @@ pnpm install
 pnpm dev          # http://localhost:3000
 ```
 
+> [!NOTE]
+> El feed en vivo y la votación requieren backend: crea `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Sin esas variables (o sin conexión) el demo sigue funcionando con datos simulados vía `?mock=1`.
+
 Para regenerar los límites de las regiones de Chile:
 
 ```bash
 node scripts/build-regions.mjs   # escribe public/chile-regions.geojson
 ```
 
-## Flujo del demo (sin wallet)
+## Flujo del demo
+
+> [!NOTE]
+> La simulación completa corre **sin wallet propia** (cuentas Testnet efímeras). Sólo el paso de **voto comunitario** pide una wallet real: el ballot se firma con Freighter en Testnet.
 
 1. **Landing** con globo terráqueo → "Iniciar simulación".
 2. El globo **vuela a Chile**; aparecen **focos de catástrofe** simulados (puntos pulsantes)
