@@ -130,6 +130,22 @@ liberar 2-de-2 + Proof of Aid) y el **gating** de pasos antes de validar el cata
 > - **`?start=1`** y **`?region=<COD_REGI>`** — saltan el landing y abren el panel de una región
 >   sin depender del click sobre el canvas del globo (ej. `/?start=1&region=5&mock=1`).
 
+### Contratos Stellar y smoke Testnet
+
+```powershell
+pnpm test:stellar-contracts
+pnpm test:stellar-testnet # skipped por defecto
+$env:RUN_STELLAR_TESTNET_E2E="1"; pnpm test:stellar-testnet
+```
+
+Los contract tests validan los builders usados por producción: payment XLM, memo del incidente,
+pool, monto y claimant. El smoke opt-in crea cuentas efímeras, ejecuta donación → emisión de
+Claimable Balance → claim sobre Testnet y emite `AID_LOOP_RECEIPT` con hashes públicos.
+
+> [!WARNING]
+> El smoke consume Friendbot y Horizon reales. Nunca registra secret seeds y no reemplaza el
+> walkthrough físico de la app móvil.
+
 ## Modelo de negocio
 
 VACA opera bajo una **sostenibilidad híbrida**:
