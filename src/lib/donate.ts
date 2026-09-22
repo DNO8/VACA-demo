@@ -6,6 +6,7 @@
 // una wallet multifirma VACA + claimable balances al receptor.
 
 import {
+  Account,
   Keypair,
   TransactionBuilder,
   Operation,
@@ -68,6 +69,34 @@ export interface DonationResult {
   explorerUrl: string;
 }
 
+export function vaquitaMemoFor(incidentId: string): string {
+  const normalized = incidentId.trim();
+  if (!normalized) throw new Error('El incidente es obligatorio');
+  return `vq:${normalized.slice(0, 8)}`;
+}
+
+export function buildDonationTransaction(
+  source: Account,
+  poolPublicKey: string,
+  amountXlm: string,
+  incidentId: string,
+) {
+  return new TransactionBuilder(source, {
+    fee: BASE_FEE,
+    networkPassphrase: NETWORK,
+  })
+    .addOperation(
+      Operation.payment({
+        destination: poolPublicKey,
+        asset: Asset.native(),
+        amount: amountXlm,
+      }),
+    )
+    .addMemo(Memo.text(vaquitaMemoFor(incidentId)))
+    .setTimeout(180)
+    .build();
+}
+
 /**
  * Dona XLM al pool Vaquita, con memo del incidente.
  * Fondea con friendbot al donante si su cuenta no existe en testnet.
@@ -85,21 +114,12 @@ export async function donateToPool(
   await fundIfMissing(pool.publicKey);
 
   const source = await srv.loadAccount(donorPublicKey);
-  const memoText = `vq:${incidentId.slice(0, 8)}`; // máx 28 bytes
-  const tx = new TransactionBuilder(source, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK,
-  })
-    .addOperation(
-      Operation.payment({
-        destination: pool.publicKey,
-        asset: Asset.native(),
-        amount: amountXlm,
-      }),
-    )
-    .addMemo(Memo.text(memoText))
-    .setTimeout(180)
-    .build();
+  const tx = buildDonationTransaction(
+    source,
+    pool.publicKey,
+    amountXlm,
+    incidentId,
+  );
 
   const { signedTxXdr, error } = await signTransaction(tx.toXDR(), {
     networkPassphrase: NETWORK,

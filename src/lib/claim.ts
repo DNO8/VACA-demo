@@ -7,6 +7,7 @@
 // RPC/cola, con top-ups para donaciones posteriores al primer claim.
 
 import {
+  Account,
   Keypair,
   TransactionBuilder,
   Operation,
@@ -16,12 +17,36 @@ import {
   BASE_FEE,
 } from '@stellar/stellar-sdk';
 import { getServer, NETWORK, explorerTx } from './stellar';
-import { getPool, fundIfMissing } from './donate';
+import { getPool, fundIfMissing, vaquitaMemoFor } from './donate';
 
 export interface VaquitaClaim {
   txHash: string;
   amount: string;
   explorerUrl: string;
+}
+
+export function buildVaquitaClaimTransaction(
+  source: Account,
+  receiverPubkey: string,
+  amountXlm: string,
+  incidentId: string,
+) {
+  return new TransactionBuilder(source, {
+    fee: BASE_FEE,
+    networkPassphrase: NETWORK,
+  })
+    .addOperation(
+      Operation.createClaimableBalance({
+        asset: Asset.native(),
+        amount: amountXlm,
+        claimants: [
+          new Claimant(receiverPubkey, Claimant.predicateUnconditional()),
+        ],
+      }),
+    )
+    .addMemo(Memo.text(vaquitaMemoFor(incidentId)))
+    .setTimeout(180)
+    .build();
 }
 
 /**
@@ -80,23 +105,12 @@ export async function createVaquitaClaim(
 
   await fundIfMissing(pool.publicKey);
   const source = await srv.loadAccount(pool.publicKey);
-
-  const tx = new TransactionBuilder(source, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK,
-  })
-    .addOperation(
-      Operation.createClaimableBalance({
-        asset: Asset.native(),
-        amount: total.toFixed(7),
-        claimants: [
-          new Claimant(receiverPubkey, Claimant.predicateUnconditional()),
-        ],
-      }),
-    )
-    .addMemo(Memo.text(`vq:${incidentId.slice(0, 8)}`))
-    .setTimeout(180)
-    .build();
+  const tx = buildVaquitaClaimTransaction(
+    source,
+    receiverPubkey,
+    total.toFixed(7),
+    incidentId,
+  );
 
   tx.sign(Keypair.fromSecret(pool.secret));
   const res = await srv.submitTransaction(tx);
